@@ -1,0 +1,73 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src https: http: data:">
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: transparent; color: #fff; font: 13px -apple-system, system-ui, sans-serif; user-select: none; }
+  #sidebar { position: absolute; inset: 0 auto 0 0; width: 240px; display: flex; flex-direction: column; padding: 44px 8px 8px; }
+  #space-name { font-weight: 600; padding: 0 8px 8px; opacity: .85; }
+  #tabs { flex: 1; overflow-y: auto; }
+  .row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; cursor: default; white-space: nowrap; overflow: hidden; }
+  .row:hover { background: rgba(255,255,255,.12); }
+  .row.active { background: rgba(255,255,255,.28); }
+  .row img, .row .dot { width: 16px; height: 16px; flex: none; border-radius: 3px; }
+  .row .dot { background: rgba(255,255,255,.3); }
+  .row span { overflow: hidden; text-overflow: ellipsis; }
+  .children { padding-left: 14px; }
+  hr { border: 0; border-top: 1px solid rgba(255,255,255,.25); margin: 8px; }
+  #new { opacity: .7; }
+</style>
+</head>
+<body>
+<div id="sidebar">
+  <div id="space-name"></div>
+  <div id="tabs"></div>
+</div>
+<script>
+const $ = (id) => document.getElementById(id)
+const el = (tag, cls, text) => {
+  const e = document.createElement(tag)
+  if (cls) e.className = cls
+  if (text) e.textContent = text
+  return e
+}
+
+function tabRow(t, activeId) {
+  const r = el('div', 'row' + (t.id === activeId ? ' active' : ''))
+  if (t.favicon) {
+    const img = el('img')
+    img.src = t.favicon
+    img.onerror = () => img.replaceWith(el('div', 'dot'))
+    r.append(img)
+  } else r.append(el('div', 'dot'))
+  r.append(el('span', '', t.title || t.url))
+  r.title = t.url
+  r.onclick = () => camber.send('select', t.id)
+  return r
+}
+
+camber.onState(({ state }) => {
+  const s = state.spaces[state.active]
+  $('space-name').textContent = s.name
+  const box = $('tabs')
+  box.replaceChildren()
+  s.pinned.forEach((it, i) => {
+    if (!it.children) return box.append(tabRow(it, s.activeId))
+    const f = el('div', 'row')
+    f.append(el('span', '', (it.open ? '▾ ' : '▸ ') + it.title))
+    f.onclick = () => camber.send('toggleFolder', i)
+    box.append(f)
+    if (it.open) {
+      const c = el('div', 'children')
+      it.children.forEach((t) => c.append(tabRow(t, s.activeId)))
+      box.append(c)
+    }
+  })
+  box.append(el('hr'))
+  s.today.forEach((t) => box.append(tabRow(t, s.activeId)))
+})
+</script>
+</body>
+</html>

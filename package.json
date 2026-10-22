@@ -1,0 +1,17 @@
+{
+  "name": "camber",
+  "version": "1.0.0",
+  "description": "An open-source Arc-style browser on Electron",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test"
+  },
+  "author": "Yuvraj Angad Singh (https://github.com/yuvrajangadsingh)",
+  "license": "MIT",
+  "type": "commonjs",
+  "devDependencies": {
+    "electron": "^45.0.0"
+  },
+  "private": true
+}

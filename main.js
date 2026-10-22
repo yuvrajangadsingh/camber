@@ -1,0 +1,172 @@
+const { app, BaseWindow, WebContentsView, Menu, ipcMain } = require('electron')
+const path = require('node:path')
+
+const SIDEBAR = 240
+const GAP = 8
+const views = new Map() // tab id -> WebContentsView, only for tabs opened this run
+let win, ui
+let sidebarOpen = true
+
+let state = {
+  active: 0,
+  spaces: [{ id: 's1', name: 'Space 1', color: '#5b6ee1', activeId: null, pinned: [], today: [] }],
+}
+
+const uid = () => Math.random().toString(36).slice(2, 10)
+const space = () => state.spaces[state.active]
+
+// pinned holds tabs and folders ({ title, open, children: [tab] }), today holds tabs
+function* tabsOf(s) {
+  for (const it of [...s.pinned, ...s.today]) {
+    if (it.children) yield* it.children
+    else yield it
+  }
+}
+
+function find(id) {
+  for (const s of state.spaces) for (const t of tabsOf(s)) if (t.id === id) return { s, t }
+}
+
+// removes a tab from wherever it sits in its space and returns it
+function detach(s, id) {
+  for (const list of [s.pinned, s.today, ...s.pinned.filter((f) => f.children).map((f) => f.children)]) {
+    const i = list.findIndex((t) => t.id === id)
+    if (i >= 0) return list.splice(i, 1)[0]
+  }
+}
+
+function render() {
+  ui.webContents.send('state', { state, sidebarOpen })
+}
+
+function layout() {
+  const { width, height } = win.getContentBounds()
+  ui.setBounds({ x: 0, y: 0, width: SIDEBAR, height })
+  ui.setVisible(sidebarOpen)
+  const x = sidebarOpen ? SIDEBAR : GAP
+  for (const [id, v] of views) {
+    v.setVisible(id === space().activeId)
+    v.setBounds({ x, y: GAP, width: width - x - GAP, height: height - 2 * GAP })
+  }
+}
+
+function viewFor(t) {
+  if (views.has(t.id)) return views.get(t.id)
+  const v = new WebContentsView()
+  v.setBorderRadius(8)
+  const wc = v.webContents
+  wc.on('page-title-updated', (_, title) => { t.title = title; render() })
+  wc.on('page-favicon-updated', (_, icons) => { t.favicon = icons[0]; render() })
+  wc.on('did-navigate', (_, url) => { t.url = url; render() })
+  wc.on('did-navigate-in-page', (_, url, main) => { if (main) { t.url = url; render() } })
+  wc.setWindowOpenHandler(({ url }) => { newTab(url); return { action: 'deny' } })
+  win.contentView.addChildView(v, 0) // below the sidebar view
+  wc.loadURL(t.url)
+  views.set(t.id, v)
+  return v
+}
+
+function select(id) {
+  const found = find(id)
+  if (!found) return
+  state.active = state.spaces.indexOf(found.s)
+  found.s.activeId = id
+  const v = viewFor(found.t)
+  layout()
+  render()
+  v.webContents.focus()
+}
+
+function newTab(url) {
+  const t = { id: uid(), url, title: url }
+  space().today.unshift(t)
+  select(t.id)
+}
+
+function dropView(id) {
+  const v = views.get(id)
+  if (!v) return
+  win.contentView.removeChildView(v)
+  v.webContents.close()
+  views.delete(id)
+}
+
+// closing a pinned tab only unloads it, like Arc; closing a today tab removes it
+function closeTab() {
+  const s = space()
+  const id = s.activeId
+  if (!id) return
+  dropView(id)
+  if (s.today.some((t) => t.id === id)) detach(s, id)
+  s.activeId = null
+  const next = s.today[0] || [...tabsOf(s)].find((t) => views.has(t.id))
+  if (next) select(next.id)
+  else { layout(); render() }
+}
+
+function togglePin() {
+  const s = space()
+  const id = s.activeId
+  if (!id) return
+  const pinned = !s.today.some((t) => t.id === id)
+  const t = detach(s, id)
+  if (pinned) s.today.unshift(t)
+  else s.pinned.push(t)
+  render()
+}
+
+const current = () => views.get(space().activeId)?.webContents
+
+const commands = {
+  select,
+  newTab,
+  toggleFolder(i) {
+    const f = space().pinned[i]
+    if (f?.children) { f.open = !f.open; render() }
+  },
+}
+
+ipcMain.on('cmd', (e, name, ...args) => {
+  if (e.sender === ui.webContents && Object.hasOwn(commands, name)) commands[name](...args)
+})
+
+function menu() {
+  const item = (label, accelerator, click) => ({ label, accelerator, click })
+  Menu.setApplicationMenu(Menu.buildFromTemplate([
+    { role: 'appMenu' },
+    { role: 'editMenu' },
+    {
+      label: 'Tab',
+      submenu: [
+        item('Close Tab', 'Cmd+W', closeTab),
+        item('Reload', 'Cmd+R', () => current()?.reload()),
+        item('Back', 'Cmd+[', () => current()?.navigationHistory.goBack()),
+        item('Forward', 'Cmd+]', () => current()?.navigationHistory.goForward()),
+        item('Pin / Unpin', 'Cmd+D', togglePin),
+      ],
+    },
+    {
+      label: 'View',
+      submenu: [
+        item('Toggle Sidebar', 'Cmd+S', () => { sidebarOpen = !sidebarOpen; layout() }),
+        { role: 'toggleDevTools' },
+      ],
+    },
+  ]))
+}
+
+app.whenReady().then(() => {
+  win = new BaseWindow({ width: 1280, height: 820, titleBarStyle: 'hiddenInset', backgroundColor: space().color })
+  ui = new WebContentsView({ webPreferences: { preload: path.join(__dirname, 'preload.js') } })
+  ui.setBackgroundColor('#00000000')
+  win.contentView.addChildView(ui)
+  ui.webContents.loadFile('ui.html')
+  ui.webContents.once('did-finish-load', () => {
+    newTab('https://duckduckgo.com')
+    render()
+  })
+  win.on('resize', layout)
+  win.on('closed', () => app.quit())
+  menu()
+  layout()
+})
