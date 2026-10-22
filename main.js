@@ -6,6 +6,7 @@ const GAP = 8
 const views = new Map() // tab id -> WebContentsView, only for tabs opened this run
 let win, ui
 let sidebarOpen = true
+let paletteOpen = false
 
 let state = {
   active: 0,
@@ -43,8 +44,9 @@ function render() {
 function layout() {
   win.setBackgroundColor(space().color)
   const { width, height } = win.getContentBounds()
-  ui.setBounds({ x: 0, y: 0, width: SIDEBAR, height })
-  ui.setVisible(sidebarOpen)
+  // the command bar is drawn by the sidebar view, stretched over the whole window
+  ui.setBounds({ x: 0, y: 0, width: paletteOpen ? width : SIDEBAR, height })
+  ui.setVisible(sidebarOpen || paletteOpen)
   const x = sidebarOpen ? SIDEBAR : GAP
   for (const [id, v] of views) {
     v.setVisible(id === space().activeId)
@@ -134,12 +136,42 @@ function newSpace() {
   showSpace(n)
 }
 
+function toURL(text) {
+  text = text.trim()
+  if (/^[a-z][a-z0-9+.-]*:/i.test(text) && !/\s/.test(text)) return text
+  if (!/\s/.test(text) && (text.includes('.') || text.startsWith('localhost'))) return 'https://' + text
+  return 'https://duckduckgo.com/?q=' + encodeURIComponent(text)
+}
+
+function openPalette(mode) {
+  paletteOpen = true
+  win.contentView.addChildView(ui) // re-adding moves it to the top
+  layout()
+  const t = find(space().activeId)?.t
+  ui.webContents.send('palette', { mode, url: mode === 'edit' ? t?.url || '' : '' })
+  ui.webContents.focus()
+}
+
+function closePalette() {
+  paletteOpen = false
+  layout()
+  current()?.focus()
+}
+
 const current = () => views.get(space().activeId)?.webContents
 
 const commands = {
-  select,
-  newTab,
+  select(id) { closePalette(); select(id) },
   newSpace,
+  closePalette,
+  openPalette: (mode) => openPalette(mode === 'edit' ? 'edit' : 'new'),
+  go(text, mode) {
+    closePalette()
+    const url = toURL(String(text))
+    const wc = current()
+    if (mode === 'edit' && wc) wc.loadURL(url)
+    else newTab(url)
+  },
   showSpace: (i) => state.spaces[i] && showSpace(i),
   toggleFolder(i) {
     const f = space().pinned[i]
@@ -159,6 +191,8 @@ function menu() {
     {
       label: 'Tab',
       submenu: [
+        item('New Tab', 'Cmd+T', () => openPalette('new')),
+        item('Open Location', 'Cmd+L', () => openPalette('edit')),
         item('Close Tab', 'Cmd+W', closeTab),
         item('Reload', 'Cmd+R', () => current()?.reload()),
         item('Back', 'Cmd+[', () => current()?.navigationHistory.goBack()),
@@ -171,7 +205,7 @@ function menu() {
       submenu: [
         item('Next Space', 'Cmd+Ctrl+Right', () => moveSpace(1)),
         item('Previous Space', 'Cmd+Ctrl+Left', () => moveSpace(-1)),
-        item('Toggle Sidebar', 'Cmd+S', () => { sidebarOpen = !sidebarOpen; layout() }),
+        item('Toggle Sidebar', 'Cmd+S', () => { sidebarOpen = !sidebarOpen; layout(); render() }),
         { role: 'toggleDevTools' },
       ],
     },

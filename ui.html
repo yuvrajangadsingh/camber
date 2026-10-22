@@ -17,6 +17,12 @@
   .row span { overflow: hidden; text-overflow: ellipsis; }
   .children { padding-left: 14px; }
   hr { border: 0; border-top: 1px solid rgba(255,255,255,.25); margin: 8px; }
+  #new { opacity: .7; }
+  #backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.35); }
+  #palette { display: none; position: fixed; top: 18%; left: 50%; transform: translateX(-50%); width: min(640px, 80vw); background: #1f1f23; border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,.5); overflow: hidden; }
+  body.palette #backdrop, body.palette #palette { display: block; }
+  #palette input { width: 100%; border: 0; outline: 0; padding: 16px; font-size: 17px; background: transparent; color: #fff; }
+  #results .row { margin: 0 6px 6px; }
   #spaces { display: flex; gap: 6px; justify-content: center; padding-top: 8px; }
   #spaces button { width: 18px; height: 18px; border-radius: 50%; border: 2px solid transparent; padding: 0; cursor: default; color: #fff; background: rgba(255,255,255,.2); font-size: 12px; line-height: 12px; }
   #spaces button.active { border-color: #fff; }
@@ -27,6 +33,11 @@
   <div id="space-name"></div>
   <div id="tabs"></div>
   <div id="spaces"></div>
+</div>
+<div id="backdrop"></div>
+<div id="palette">
+  <input id="query" placeholder="Search or enter URL" spellcheck="false">
+  <div id="results"></div>
 </div>
 <script>
 const $ = (id) => document.getElementById(id)
@@ -47,11 +58,15 @@ function tabRow(t, activeId) {
   } else r.append(el('div', 'dot'))
   r.append(el('span', '', t.title || t.url))
   r.title = t.url
-  r.onclick = () => camber.send('select', t.id)
+  r.onclick = () => { document.body.classList.remove('palette'); camber.send('select', t.id) }
   return r
 }
 
-camber.onState(({ state }) => {
+let current, mode, picked = 0
+
+camber.onState(({ state, sidebarOpen }) => {
+  current = state
+  $('sidebar').style.visibility = sidebarOpen ? '' : 'hidden'
   const s = state.spaces[state.active]
   $('space-name').textContent = s.name
   const box = $('tabs')
@@ -69,6 +84,10 @@ camber.onState(({ state }) => {
     }
   })
   box.append(el('hr'))
+  const nt = el('div', 'row', '+ New Tab')
+  nt.id = 'new'
+  nt.onclick = () => camber.send('openPalette', 'new')
+  box.append(nt)
   s.today.forEach((t) => box.append(tabRow(t, s.activeId)))
 
   const bar = $('spaces')
@@ -85,6 +104,74 @@ camber.onState(({ state }) => {
   add.onclick = () => camber.send('newSpace')
   bar.append(add)
 })
+
+// subsequence match: every query char in order; tighter spans score lower (better)
+function fuzzy(q, text) {
+  text = text.toLowerCase()
+  let start = -1, pos = -1
+  for (const ch of q) {
+    pos = text.indexOf(ch, pos + 1)
+    if (pos < 0) return null
+    if (start < 0) start = pos
+  }
+  return pos - start + start / 100
+}
+
+function tabsOf(s) {
+  return [...s.pinned, ...s.today].flatMap((it) => it.children || [it])
+}
+
+function matches() {
+  const q = $('query').value.trim().toLowerCase()
+  if (!q || !current) return []
+  return tabsOf(current.spaces[current.active])
+    .map((t) => ({ t, score: fuzzy(q, (t.title || '') + ' ' + t.url) }))
+    .filter((m) => m.score !== null)
+    .sort((a, b) => a.score - b.score)
+    .slice(0, 6)
+    .map((m) => m.t)
+}
+
+function showResults() {
+  const list = matches()
+  picked = Math.min(picked, list.length)
+  const box = $('results')
+  box.replaceChildren()
+  list.forEach((t, i) => {
+    const r = tabRow(t)
+    if (i + 1 === picked) r.classList.add('active')
+    box.append(r)
+  })
+}
+
+camber.onPalette(({ mode: m, url }) => {
+  mode = m
+  picked = 0
+  document.body.classList.add('palette')
+  const q = $('query')
+  q.value = url
+  q.focus()
+  q.select()
+  showResults()
+})
+
+const close = () => { document.body.classList.remove('palette'); camber.send('closePalette') }
+$('backdrop').onclick = close
+$('query').oninput = () => { picked = 0; showResults() }
+// picked 0 means "go to what I typed", 1..n means the nth matching tab
+$('query').onkeydown = (e) => {
+  const list = matches()
+  if (e.key === 'Escape') close()
+  else if (e.key === 'ArrowDown') { picked = Math.min(picked + 1, list.length); showResults() }
+  else if (e.key === 'ArrowUp') { picked = Math.max(picked - 1, 0); showResults() }
+  else if (e.key === 'Enter') {
+    document.body.classList.remove('palette')
+    if (picked) camber.send('select', list[picked - 1].id)
+    else if (e.target.value.trim()) camber.send('go', e.target.value, mode)
+    else camber.send('closePalette')
+  } else return
+  e.preventDefault()
+}
 </script>
 </body>
 </html>
