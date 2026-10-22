@@ -1,4 +1,5 @@
 const { app, BaseWindow, WebContentsView, Menu, ipcMain } = require('electron')
+const fs = require('node:fs')
 const path = require('node:path')
 
 const SIDEBAR = 240
@@ -37,8 +38,29 @@ function detach(s, id) {
   }
 }
 
+const statePath = () => path.join(app.getPath('userData'), 'state.json')
+
+function load() {
+  try {
+    state = JSON.parse(fs.readFileSync(statePath(), 'utf8'))
+  } catch (e) {
+    if (e.code === 'ENOENT') return
+    // keep the unreadable file for the user instead of overwriting it with defaults
+    fs.renameSync(statePath(), statePath() + '.bad')
+  }
+}
+
+function save() {
+  const tmp = statePath() + '.tmp'
+  fs.writeFileSync(tmp, JSON.stringify(state, null, 2))
+  fs.renameSync(tmp, statePath())
+}
+
+let saveTimer
 function render() {
   ui.webContents.send('state', { state, sidebarOpen })
+  clearTimeout(saveTimer)
+  saveTimer = setTimeout(save, 500)
 }
 
 function layout() {
@@ -218,17 +240,20 @@ app.userAgentFallback = cleanUA(app.userAgentFallback)
 app.on('session-created', (s) => s.setUserAgent(cleanUA(s.getUserAgent())))
 
 app.whenReady().then(() => {
+  load()
   win = new BaseWindow({ width: 1280, height: 820, titleBarStyle: 'hiddenInset', backgroundColor: space().color })
   ui = new WebContentsView({ webPreferences: { preload: path.join(__dirname, 'preload.js') } })
   ui.setBackgroundColor('#00000000')
   win.contentView.addChildView(ui)
   ui.webContents.loadFile('ui.html')
   ui.webContents.once('did-finish-load', () => {
-    newTab('https://duckduckgo.com')
+    const s = space()
+    if (s.activeId && find(s.activeId)) select(s.activeId)
+    else if (![...tabsOf(s)].length) newTab('https://duckduckgo.com')
     render()
   })
   win.on('resize', layout)
-  win.on('closed', () => app.quit())
+  win.on('closed', () => { clearTimeout(saveTimer); save(); app.quit() })
   menu()
   layout()
 })
