@@ -1,6 +1,7 @@
-const { app, BaseWindow, WebContentsView, Menu, ipcMain } = require('electron')
+const { app, BaseWindow, WebContentsView, Menu, dialog, ipcMain } = require('electron')
 const fs = require('node:fs')
 const path = require('node:path')
+const arc = require('./arc')
 
 const SIDEBAR = 240
 const GAP = 8
@@ -56,9 +57,26 @@ function save() {
   fs.renameSync(tmp, statePath())
 }
 
+// CAMBER_ARC_FILE points the importer at a copy instead of Arc's live file
+const arcPath = () => process.env.CAMBER_ARC_FILE || path.join(app.getPath('appData'), 'Arc', 'StorableSidebar.json')
+
+function importArc() {
+  let spaces
+  try {
+    spaces = arc.convert(JSON.parse(fs.readFileSync(arcPath(), 'utf8')), uid)
+  } catch (e) {
+    dialog.showErrorBox('Import from Arc', `Could not read ${arcPath()}\n\n${e.message}`)
+    return
+  }
+  state.importedArc = true
+  state.spaces.push(...spaces)
+  showSpace(state.spaces.length - spaces.length)
+}
+
 let saveTimer
 function render() {
-  ui.webContents.send('state', { state, sidebarOpen })
+  const offerArc = !state.importedArc && fs.existsSync(arcPath())
+  ui.webContents.send('state', { state, sidebarOpen, offerArc })
   clearTimeout(saveTimer)
   saveTimer = setTimeout(save, 500)
 }
@@ -185,6 +203,7 @@ const current = () => views.get(space().activeId)?.webContents
 const commands = {
   select(id) { closePalette(); select(id) },
   newSpace,
+  importArc,
   closePalette,
   openPalette: (mode) => openPalette(mode === 'edit' ? 'edit' : 'new'),
   go(text, mode) {
@@ -209,6 +228,7 @@ function menu() {
   const item = (label, accelerator, click) => ({ label, accelerator, click })
   Menu.setApplicationMenu(Menu.buildFromTemplate([
     { role: 'appMenu' },
+    { label: 'File', submenu: [item('Import from Arc…', undefined, importArc)] },
     { role: 'editMenu' },
     {
       label: 'Tab',

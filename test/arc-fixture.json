@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "sidebar": {
+    "containers": [
+      { "global": {} },
+      {
+        "topAppsContainerIDs": [],
+        "spaces": [
+          "space-a",
+          {
+            "id": "space-a",
+            "title": "Work",
+            "profile": { "default": true },
+            "customInfo": { "windowTheme": { "primaryColorPalette": { "midTone": { "red": 1, "green": 0.5, "blue": 0, "alpha": 1 } } } },
+            "containerIDs": ["pinned", "pin-a", "unpinned", "unpin-a"]
+          },
+          "space-b",
+          {
+            "id": "space-b",
+            "title": "Leisure",
+            "profile": { "custom": { "_0": { "directoryBasename": "Profile 2", "machineID": "machine-1" } } },
+            "containerIDs": ["pinned", "pin-b", "unpinned", "unpin-b"]
+          }
+        ],
+        "items": [
+          "pin-a", { "id": "pin-a", "title": null, "parentID": null, "childrenIds": ["t1", "f1", "sv1"], "data": { "itemContainer": { "containerType": { "spaceItems": { "_0": "space-a" } } } } },
+          "t1", { "id": "t1", "title": "Renamed Inbox", "parentID": "pin-a", "childrenIds": [], "data": { "tab": { "savedURL": "https://mail.example.com/", "savedTitle": "Mailbox" } } },
+          "f1", { "id": "f1", "title": "Docs", "parentID": "pin-a", "childrenIds": ["t2", "t3", "f2"], "data": { "list": {} } },
+          "t2", { "id": "t2", "title": null, "parentID": "f1", "childrenIds": [], "data": { "tab": { "savedURL": "https://docs.example.com/a", "savedTitle": "Doc A" } } },
+          "t3", { "id": "t3", "title": null, "parentID": "f1", "childrenIds": [], "data": { "tab": { "savedURL": "https://docs.example.com/b", "savedTitle": "Doc B" } } },
+          "f2", { "id": "f2", "title": "Old", "parentID": "f1", "childrenIds": ["t4"], "data": { "list": {} } },
+          "t4", { "id": "t4", "title": null, "parentID": "f2", "childrenIds": [], "data": { "tab": { "savedURL": "https://old.example.com/", "savedTitle": "Old Doc" } } },
+          "sv1", { "id": "sv1", "title": null, "parentID": "pin-a", "childrenIds": ["t5", "t6"], "data": { "splitView": { "layoutOrientation": "horizontal" } } },
+          "t5", { "id": "t5", "title": null, "parentID": "sv1", "childrenIds": [], "data": { "tab": { "savedURL": "https://left.example.com/", "savedTitle": "Left" } } },
+          "t6", { "id": "t6", "title": null, "parentID": "sv1", "childrenIds": [], "data": { "tab": { "savedURL": "https://right.example.com/", "savedTitle": "Right" } } },
+          "unpin-a", { "id": "unpin-a", "title": null, "parentID": null, "childrenIds": ["t7"], "data": { "itemContainer": { "containerType": { "spaceItems": { "_0": "space-a" } } } } },
+          "t7", { "id": "t7", "title": null, "parentID": "unpin-a", "childrenIds": [], "data": { "tab": { "savedURL": "https://today.example.com/", "savedTitle": "Today" } } },
+          "pin-b", { "id": "pin-b", "title": null, "parentID": null, "childrenIds": ["t8"], "data": { "itemContainer": { "containerType": { "spaceItems": { "_0": "space-b" } } } } },
+          "t8", { "id": "t8", "title": null, "parentID": "pin-b", "childrenIds": [], "data": { "tab": { "savedURL": "https://example.org/", "savedTitle": "Example Org" } } },
+          "unpin-b", { "id": "unpin-b", "title": null, "parentID": null, "childrenIds": [], "data": { "itemContainer": { "containerType": { "spaceItems": { "_0": "space-b" } } } } }
+        ]
+      },
+      { "littleBrowser": {} },
+      {
+        "topAppsContainerIDs": [],
+        "spaces": ["space-c", { "id": "space-c", "title": "Stray", "profile": { "default": true }, "containerIDs": ["unpinned", "unpin-c"] }],
+        "items": ["unpin-c", { "id": "unpin-c", "title": null, "parentID": null, "childrenIds": [], "data": { "itemContainer": {} } }]
+      }
+    ]
+  }
+}

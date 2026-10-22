@@ -23,6 +23,7 @@
   body.palette #backdrop, body.palette #palette { display: block; }
   #palette input { width: 100%; border: 0; outline: 0; padding: 16px; font-size: 17px; background: transparent; color: #fff; }
   #results .row { margin: 0 6px 6px; }
+  #import { margin: 8px; padding: 8px; border: 0; border-radius: 6px; background: rgba(255,255,255,.2); color: #fff; font: inherit; }
   #spaces { display: flex; gap: 6px; justify-content: center; padding-top: 8px; }
   #spaces button { width: 18px; height: 18px; border-radius: 50%; border: 2px solid transparent; padding: 0; cursor: default; color: #fff; background: rgba(255,255,255,.2); font-size: 12px; line-height: 12px; }
   #spaces button.active { border-color: #fff; }
@@ -32,6 +33,7 @@
 <div id="sidebar">
   <div id="space-name"></div>
   <div id="tabs"></div>
+  <button id="import" hidden>Import from Arc</button>
   <div id="spaces"></div>
 </div>
 <div id="backdrop"></div>
@@ -64,11 +66,15 @@ function tabRow(t, activeId) {
 
 let current, mode, picked = 0
 
-camber.onState(({ state, sidebarOpen }) => {
+$('import').onclick = () => camber.send('importArc')
+
+camber.onState(({ state, sidebarOpen, offerArc }) => {
   current = state
+  $('import').hidden = !offerArc
   $('sidebar').style.visibility = sidebarOpen ? '' : 'hidden'
   const s = state.spaces[state.active]
   $('space-name').textContent = s.name
+  $('sidebar').style.background = s.color
   const box = $('tabs')
   box.replaceChildren()
   s.pinned.forEach((it, i) => {
