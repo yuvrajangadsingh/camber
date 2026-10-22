@@ -9,8 +9,9 @@ let sidebarOpen = true
 
 let state = {
   active: 0,
-  spaces: [{ id: 's1', name: 'Space 1', color: '#5b6ee1', activeId: null, pinned: [], today: [] }],
+  spaces: [{ id: 's1', name: 'Space 1', color: '#5b6ee1', profile: 'default', activeId: null, pinned: [], today: [] }],
 }
+const COLORS = ['#5b6ee1', '#d9485f', '#2f9e77', '#e8890c', '#7b52c7', '#3d8fd1']
 
 const uid = () => Math.random().toString(36).slice(2, 10)
 const space = () => state.spaces[state.active]
@@ -40,6 +41,7 @@ function render() {
 }
 
 function layout() {
+  win.setBackgroundColor(space().color)
   const { width, height } = win.getContentBounds()
   ui.setBounds({ x: 0, y: 0, width: SIDEBAR, height })
   ui.setVisible(sidebarOpen)
@@ -52,7 +54,8 @@ function layout() {
 
 function viewFor(t) {
   if (views.has(t.id)) return views.get(t.id)
-  const v = new WebContentsView()
+  // each space's profile is its own cookie jar, like Arc's profile-per-space
+  const v = new WebContentsView({ webPreferences: { partition: 'persist:' + find(t.id).s.profile } })
   v.setBorderRadius(8)
   const wc = v.webContents
   wc.on('page-title-updated', (_, title) => { t.title = title; render() })
@@ -115,11 +118,29 @@ function togglePin() {
   render()
 }
 
+function showSpace(i) {
+  state.active = i
+  const v = views.get(space().activeId)
+  layout()
+  render()
+  v?.webContents.focus()
+}
+
+const moveSpace = (d) => showSpace((state.active + d + state.spaces.length) % state.spaces.length)
+
+function newSpace() {
+  const n = state.spaces.length
+  state.spaces.push({ id: uid(), name: `Space ${n + 1}`, color: COLORS[n % COLORS.length], profile: 'default', activeId: null, pinned: [], today: [] })
+  showSpace(n)
+}
+
 const current = () => views.get(space().activeId)?.webContents
 
 const commands = {
   select,
   newTab,
+  newSpace,
+  showSpace: (i) => state.spaces[i] && showSpace(i),
   toggleFolder(i) {
     const f = space().pinned[i]
     if (f?.children) { f.open = !f.open; render() }
@@ -148,12 +169,19 @@ function menu() {
     {
       label: 'View',
       submenu: [
+        item('Next Space', 'Cmd+Ctrl+Right', () => moveSpace(1)),
+        item('Previous Space', 'Cmd+Ctrl+Left', () => moveSpace(-1)),
         item('Toggle Sidebar', 'Cmd+S', () => { sidebarOpen = !sidebarOpen; layout() }),
         { role: 'toggleDevTools' },
       ],
     },
   ]))
 }
+
+// Google refuses sign-in from user agents that mention Electron, so look like plain Chrome
+const cleanUA = (ua) => ua.replace(/ Electron\/\S+/, '').replace(new RegExp(` ${app.getName()}\\/\\S+`), '')
+app.userAgentFallback = cleanUA(app.userAgentFallback)
+app.on('session-created', (s) => s.setUserAgent(cleanUA(s.getUserAgent())))
 
 app.whenReady().then(() => {
   win = new BaseWindow({ width: 1280, height: 820, titleBarStyle: 'hiddenInset', backgroundColor: space().color })

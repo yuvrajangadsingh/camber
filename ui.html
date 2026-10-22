@@ -17,13 +17,16 @@
   .row span { overflow: hidden; text-overflow: ellipsis; }
   .children { padding-left: 14px; }
   hr { border: 0; border-top: 1px solid rgba(255,255,255,.25); margin: 8px; }
-  #new { opacity: .7; }
+  #spaces { display: flex; gap: 6px; justify-content: center; padding-top: 8px; }
+  #spaces button { width: 18px; height: 18px; border-radius: 50%; border: 2px solid transparent; padding: 0; cursor: default; color: #fff; background: rgba(255,255,255,.2); font-size: 12px; line-height: 12px; }
+  #spaces button.active { border-color: #fff; }
 </style>
 </head>
 <body>
 <div id="sidebar">
   <div id="space-name"></div>
   <div id="tabs"></div>
+  <div id="spaces"></div>
 </div>
 <script>
 const $ = (id) => document.getElementById(id)
@@ -67,6 +70,20 @@ camber.onState(({ state }) => {
   })
   box.append(el('hr'))
   s.today.forEach((t) => box.append(tabRow(t, s.activeId)))
+
+  const bar = $('spaces')
+  bar.replaceChildren()
+  state.spaces.forEach((sp, i) => {
+    const b = el('button', i === state.active ? 'active' : '')
+    b.style.background = sp.color
+    b.title = sp.name
+    b.onclick = () => camber.send('showSpace', i)
+    bar.append(b)
+  })
+  const add = el('button', '', '+')
+  add.title = 'New space'
+  add.onclick = () => camber.send('newSpace')
+  bar.append(add)
 })
 </script>
 </body>
