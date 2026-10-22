@@ -69,6 +69,12 @@ function importArc() {
     return
   }
   state.importedArc = true
+  // a fresh install's single starter space just gets in the way
+  const [only] = state.spaces
+  if (state.spaces.length === 1 && !only.pinned.length && only.today.length <= 1) {
+    only.today.forEach((t) => dropView(t.id))
+    state.spaces = []
+  }
   state.spaces.push(...spaces)
   showSpace(state.spaces.length - spaces.length)
 }
