@@ -21,6 +21,10 @@ npm install && npm start
 
 macOS only for now.
 
+`npm run demo` starts with a throwaway profile, and its Import from Arc reads
+`demo/arc-demo.json` (three made-up spaces of public sites) instead of your Arc
+data. Use it for screenshots and recordings.
+
 ## Use
 
 | Keys | Does |

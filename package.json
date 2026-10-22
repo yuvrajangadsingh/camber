@@ -5,6 +5,7 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
+    "demo": "electron . --demo",
     "test": "node --test"
   },
   "author": "Yuvraj Angad Singh (https://github.com/yuvrajangadsingh)",

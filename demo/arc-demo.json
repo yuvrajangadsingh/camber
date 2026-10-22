@@ -1,0 +1,509 @@
+{
+ "version": 1,
+ "sidebar": {
+  "containers": [
+   {
+    "global": {}
+   },
+   {
+    "topAppsContainerIDs": [],
+    "spaces": [
+     "space-1",
+     {
+      "id": "space-1",
+      "title": "Work",
+      "profile": {
+       "default": true
+      },
+      "customInfo": {
+       "windowTheme": {
+        "primaryColorPalette": {
+         "midTone": {
+          "red": 0.2980392156862745,
+          "green": 0.43137254901960786,
+          "blue": 0.9607843137254902,
+          "alpha": 1,
+          "colorSpace": "extendedSRGB"
+         }
+        }
+       }
+      },
+      "containerIDs": [
+       "pinned",
+       "pinned-2",
+       "unpinned",
+       "unpinned-3"
+      ]
+     },
+     "space-15",
+     {
+      "id": "space-15",
+      "title": "Weekend",
+      "profile": {
+       "default": true
+      },
+      "customInfo": {
+       "windowTheme": {
+        "primaryColorPalette": {
+         "midTone": {
+          "red": 0.9019607843137255,
+          "green": 0.28627450980392155,
+          "blue": 0.5019607843137255,
+          "alpha": 1,
+          "colorSpace": "extendedSRGB"
+         }
+        }
+       }
+      },
+      "containerIDs": [
+       "pinned",
+       "pinned-16",
+       "unpinned",
+       "unpinned-17"
+      ]
+     },
+     "space-24",
+     {
+      "id": "space-24",
+      "title": "Side project",
+      "profile": {
+       "default": true
+      },
+      "customInfo": {
+       "windowTheme": {
+        "primaryColorPalette": {
+         "midTone": {
+          "red": 0.1843137254901961,
+          "green": 0.6196078431372549,
+          "blue": 0.26666666666666666,
+          "alpha": 1,
+          "colorSpace": "extendedSRGB"
+         }
+        }
+       }
+      },
+      "containerIDs": [
+       "pinned",
+       "pinned-25",
+       "unpinned",
+       "unpinned-26"
+      ]
+     }
+    ],
+    "items": [
+     "tab-4",
+     {
+      "id": "tab-4",
+      "parentID": "pinned-2",
+      "title": null,
+      "childrenIds": [],
+      "data": {
+       "tab": {
+        "savedURL": "https://github.com/",
+        "savedTitle": "GitHub"
+       }
+      }
+     },
+     "tab-5",
+     {
+      "id": "tab-5",
+      "parentID": "pinned-2",
+      "title": null,
+      "childrenIds": [],
+      "data": {
+       "tab": {
+        "savedURL": "https://linear.app/",
+        "savedTitle": "Linear"
+       }
+      }
+     },
+     "tab-6",
+     {
+      "id": "tab-6",
+      "parentID": "pinned-2",
+      "title": null,
+      "childrenIds": [],
+      "data": {
+       "tab": {
+        "savedURL": "https://figma.com/",
+        "savedTitle": "Figma"
+       }
+      }
+     },
+     "tab-8",
+     {
+      "id": "tab-8",
+      "parentID": "folder-7",
+      "title": null,
+      "childrenIds": [],
+      "data": {
+       "tab": {
+        "savedURL": "https://developer.mozilla.org/en-US/",
+        "savedTitle": "MDN"
+       }
+      }
+     },
+     "tab-9",
+     {
+      "id": "tab-9",
+      "parentID": "folder-7",
+      "title": null,
+      "childrenIds": [],
+      "data": {
+       "tab": {
+        "savedURL": "https://www.electronjs.org/docs/latest",
+        "savedTitle": "Electron docs"
+       }
+      }
+     },
+     "tab-10",
+     {
+      "id": "tab-10",
+      "parentID": "folder-7",
+      "title": null,
+      "childrenIds": [],
+      "data": {
+       "tab": {
+        "savedURL": "https://nodejs.org/docs/latest/api/",
+        "savedTitle": "Node.js docs"
+       }
+      }
+     },
+     "tab-11",
+     {
+      "id": "tab-11",
+      "parentID": "folder-7",
+      "title": null,
+      "childrenIds": [],
+      "data": {
+       "tab": {
+        "savedURL": "https://caniuse.com/",
+        "savedTitle": "Can I use"
+       }
+      }
+     },
+     "folder-7",
+     {
+      "id": "folder-7",
+      "parentID": "pinned-2",
+      "title": "Docs",
+      "childrenIds": [
+       "tab-8",
+       "tab-9",
+       "tab-10",
+       "tab-11"
+      ],
+      "data": {
+       "list": {}
+      }
+     },
+     "tab-13",
+     {
+      "id": "tab-13",
+      "parentID": "folder-12",
+      "title": null,
+      "childrenIds": [],
+      "data": {
+       "tab": {
+        "savedURL": "https://news.ycombinator.com/",
+        "savedTitle": "Hacker News"
+       }
+      }
+     },
+     "tab-14",
+     {
+      "id": "tab-14",
+      "parentID": "folder-12",
+      "title": null,
+      "childrenIds": [],
+      "data": {
+       "tab": {
+        "savedURL": "https://lobste.rs/",
+        "savedTitle": "Lobsters"
+       }
+      }
+     },
+     "folder-12",
+     {
+      "id": "folder-12",
+      "parentID": "pinned-2",
+      "title": "Reading",
+      "childrenIds": [
+       "tab-13",
+       "tab-14"
+      ],
+      "data": {
+       "list": {}
+      }
+     },
+     "pinned-2",
+     {
+      "id": "pinned-2",
+      "parentID": null,
+      "title": null,
+      "childrenIds": [
+       "tab-4",
+       "tab-5",
+       "tab-6",
+       "folder-7",
+       "folder-12"
+      ],
+      "data": {
+       "itemContainer": {
+        "containerType": {
+         "spaceItems": {
+          "_0": "space-1"
+         }
+        }
+       }
+      }
+     },
+     "unpinned-3",
+     {
+      "id": "unpinned-3",
+      "parentID": null,
+      "title": null,
+      "childrenIds": [],
+      "data": {
+       "itemContainer": {
+        "containerType": {
+         "spaceItems": {
+          "_0": "space-1"
+         }
+        }
+       }
+      }
+     },
+     "tab-18",
+     {
+      "id": "tab-18",
+      "parentID": "pinned-16",
+      "title": null,
+      "childrenIds": [],
+      "data": {
+       "tab": {
+        "savedURL": "https://www.youtube.com/",
+        "savedTitle": "Watch Later"
+       }
+      }
+     },
+     "tab-19",
+     {
+      "id": "tab-19",
+      "parentID": "pinned-16",
+      "title": null,
+      "childrenIds": [],
+      "data": {
+       "tab": {
+        "savedURL": "https://bandcamp.com/",
+        "savedTitle": "Bandcamp"
+       }
+      }
+     },
+     "tab-21",
+     {
+      "id": "tab-21",
+      "parentID": "folder-20",
+      "title": null,
+      "childrenIds": [],
+      "data": {
+       "tab": {
+        "savedURL": "https://radio.garden/",
+        "savedTitle": "Radio Garden"
+       }
+      }
+     },
+     "folder-20",
+     {
+      "id": "folder-20",
+      "parentID": "pinned-16",
+      "title": "Music",
+      "childrenIds": [
+       "tab-21"
+      ],
+      "data": {
+       "list": {}
+      }
+     },
+     "tab-23",
+     {
+      "id": "tab-23",
+      "parentID": "folder-22",
+      "title": null,
+      "childrenIds": [],
+      "data": {
+       "tab": {
+        "savedURL": "https://www.seriouseats.com/",
+        "savedTitle": "Serious Eats"
+       }
+      }
+     },
+     "folder-22",
+     {
+      "id": "folder-22",
+      "parentID": "pinned-16",
+      "title": "Recipes",
+      "childrenIds": [
+       "tab-23"
+      ],
+      "data": {
+       "list": {}
+      }
+     },
+     "pinned-16",
+     {
+      "id": "pinned-16",
+      "parentID": null,
+      "title": null,
+      "childrenIds": [
+       "tab-18",
+       "tab-19",
+       "folder-20",
+       "folder-22"
+      ],
+      "data": {
+       "itemContainer": {
+        "containerType": {
+         "spaceItems": {
+          "_0": "space-15"
+         }
+        }
+       }
+      }
+     },
+     "unpinned-17",
+     {
+      "id": "unpinned-17",
+      "parentID": null,
+      "title": null,
+      "childrenIds": [],
+      "data": {
+       "itemContainer": {
+        "containerType": {
+         "spaceItems": {
+          "_0": "space-15"
+         }
+        }
+       }
+      }
+     },
+     "tab-27",
+     {
+      "id": "tab-27",
+      "parentID": "pinned-25",
+      "title": null,
+      "childrenIds": [],
+      "data": {
+       "tab": {
+        "savedURL": "https://github.com/electron/electron",
+        "savedTitle": "electron/electron"
+       }
+      }
+     },
+     "tab-28",
+     {
+      "id": "tab-28",
+      "parentID": "pinned-25",
+      "title": null,
+      "childrenIds": [],
+      "data": {
+       "tab": {
+        "savedURL": "https://excalidraw.com/",
+        "savedTitle": "Excalidraw"
+       }
+      }
+     },
+     "tab-29",
+     {
+      "id": "tab-29",
+      "parentID": "pinned-25",
+      "title": null,
+      "childrenIds": [],
+      "data": {
+       "tab": {
+        "savedURL": "https://www.tldraw.com/",
+        "savedTitle": "tldraw"
+       }
+      }
+     },
+     "tab-31",
+     {
+      "id": "tab-31",
+      "parentID": "folder-30",
+      "title": null,
+      "childrenIds": [],
+      "data": {
+       "tab": {
+        "savedURL": "https://www.producthunt.com/",
+        "savedTitle": "Product Hunt"
+       }
+      }
+     },
+     "tab-32",
+     {
+      "id": "tab-32",
+      "parentID": "folder-30",
+      "title": null,
+      "childrenIds": [],
+      "data": {
+       "tab": {
+        "savedURL": "https://news.ycombinator.com/show",
+        "savedTitle": "Show HN"
+       }
+      }
+     },
+     "folder-30",
+     {
+      "id": "folder-30",
+      "parentID": "pinned-25",
+      "title": "Launch",
+      "childrenIds": [
+       "tab-31",
+       "tab-32"
+      ],
+      "data": {
+       "list": {}
+      }
+     },
+     "pinned-25",
+     {
+      "id": "pinned-25",
+      "parentID": null,
+      "title": null,
+      "childrenIds": [
+       "tab-27",
+       "tab-28",
+       "tab-29",
+       "folder-30"
+      ],
+      "data": {
+       "itemContainer": {
+        "containerType": {
+         "spaceItems": {
+          "_0": "space-24"
+         }
+        }
+       }
+      }
+     },
+     "unpinned-26",
+     {
+      "id": "unpinned-26",
+      "parentID": null,
+      "title": null,
+      "childrenIds": [],
+      "data": {
+       "itemContainer": {
+        "containerType": {
+         "spaceItems": {
+          "_0": "space-24"
+         }
+        }
+       }
+      }
+     }
+    ]
+   }
+  ]
+ }
+}

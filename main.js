@@ -1,5 +1,6 @@
 const { app, BaseWindow, WebContentsView, Menu, dialog, ipcMain } = require('electron')
 const fs = require('node:fs')
+const os = require('node:os')
 const path = require('node:path')
 const arc = require('./arc')
 
@@ -57,8 +58,20 @@ function save() {
   fs.renameSync(tmp, statePath())
 }
 
+// --demo: throwaway profile and a synthetic Arc file, safe to screen-record.
+// Chromium keeps writing to the profile until exit, so old ones are cleared on the next start.
+const DEMO = process.argv.includes('--demo')
+if (DEMO) {
+  for (const d of fs.readdirSync(os.tmpdir())) {
+    if (d.startsWith('camber-demo-')) fs.rmSync(path.join(os.tmpdir(), d), { recursive: true, force: true })
+  }
+  app.setPath('userData', fs.mkdtempSync(path.join(os.tmpdir(), 'camber-demo-')))
+}
+
 // CAMBER_ARC_FILE points the importer at a copy instead of Arc's live file
-const arcPath = () => process.env.CAMBER_ARC_FILE || path.join(app.getPath('appData'), 'Arc', 'StorableSidebar.json')
+const arcPath = () => DEMO
+  ? path.join(__dirname, 'demo', 'arc-demo.json')
+  : process.env.CAMBER_ARC_FILE || path.join(app.getPath('appData'), 'Arc', 'StorableSidebar.json')
 
 function importArc() {
   let spaces
@@ -292,7 +305,7 @@ app.whenReady().then(() => {
     render()
   })
   win.on('resize', layout)
-  win.on('closed', () => { clearTimeout(saveTimer); save(); app.quit() })
+  win.on('closed', () => { clearTimeout(saveTimer); if (!DEMO) save(); app.quit() })
   menu()
   layout()
 })
