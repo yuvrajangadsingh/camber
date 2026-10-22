@@ -4,39 +4,79 @@
 <meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src https: http: data:">
 <style>
+  :root {
+    --c: #5b6ee1;
+    --text: #1d1d1f; --muted: rgba(29,29,31,.55); --line: rgba(0,0,0,.08);
+    --hover: rgba(255,255,255,.35); --active: rgba(255,255,255,.82); --pill: rgba(255,255,255,.45);
+    --tint-a: 58%; --tint-b: 34%; --mix: #fff;
+    --panel: rgba(250,250,252,.97); --scrim: rgba(20,20,30,.18);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --text: #f2f2f4; --muted: rgba(242,242,244,.55); --line: rgba(255,255,255,.1);
+      --hover: rgba(255,255,255,.08); --active: rgba(255,255,255,.17); --pill: rgba(255,255,255,.09);
+      --tint-a: 42%; --tint-b: 22%; --mix: #141416;
+      --panel: rgba(38,38,42,.97); --scrim: rgba(0,0,0,.35);
+    }
+  }
   * { box-sizing: border-box; }
-  html, body { margin: 0; height: 100%; background: transparent; color: #fff; font: 13px -apple-system, system-ui, sans-serif; user-select: none; }
-  #sidebar { position: absolute; inset: 0 auto 0 0; width: 240px; display: flex; flex-direction: column; padding: 44px 8px 8px; }
-  #space-name { font-weight: 600; padding: 0 8px 8px; opacity: .85; }
-  #tabs { flex: 1; overflow-y: auto; }
-  .row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; cursor: default; white-space: nowrap; overflow: hidden; }
-  .row:hover { background: rgba(255,255,255,.12); }
-  .row.active { background: rgba(255,255,255,.28); }
-  .row img, .row .dot { width: 16px; height: 16px; flex: none; border-radius: 3px; }
-  .row .dot { background: rgba(255,255,255,.3); }
+  html, body { margin: 0; height: 100%; overflow: hidden; color: var(--text); font: 13px system-ui, -apple-system, sans-serif; user-select: none; cursor: default; }
+  body { background: linear-gradient(165deg, color-mix(in oklab, var(--c) var(--tint-a), var(--mix)), color-mix(in oklab, var(--c) var(--tint-b), var(--mix))); transition: background .25s; }
+
+  #sidebar { position: absolute; inset: 0 auto 0 0; width: 248px; display: flex; flex-direction: column; padding: 0 8px 10px 10px; }
+  #drag { height: 40px; flex: none; -webkit-app-region: drag; }
+  #pill { display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px; border-radius: 9px; background: var(--pill); color: var(--muted); white-space: nowrap; overflow: hidden; }
+  #pill span { overflow: hidden; text-overflow: ellipsis; color: var(--text); }
+  #pill:hover { background: var(--active); }
+  #space-name { font-weight: 600; font-size: 12px; letter-spacing: .02em; color: var(--muted); padding: 14px 8px 6px; }
+  #tabs { flex: 1; overflow-y: auto; margin: 0 -2px; padding: 0 2px; }
+  #tabs::-webkit-scrollbar { display: none; }
+
+  .row { display: flex; align-items: center; gap: 9px; height: 34px; padding: 0 9px; border-radius: 9px; white-space: nowrap; overflow: hidden; }
+  .row:hover { background: var(--hover); }
+  .row.active { background: var(--active); box-shadow: 0 1px 3px rgba(0,0,0,.1); }
   .row span { overflow: hidden; text-overflow: ellipsis; }
-  .children { padding-left: 14px; }
-  hr { border: 0; border-top: 1px solid rgba(255,255,255,.25); margin: 8px; }
-  #new { opacity: .7; }
-  #backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.35); }
-  #palette { display: none; position: fixed; top: 18%; left: 50%; transform: translateX(-50%); width: min(640px, 80vw); background: #1f1f23; border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,.5); overflow: hidden; }
-  body.palette #backdrop, body.palette #palette { display: block; }
-  #palette input { width: 100%; border: 0; outline: 0; padding: 16px; font-size: 17px; background: transparent; color: #fff; }
-  #results .row { margin: 0 6px 6px; }
-  #import { margin: 8px; padding: 8px; border: 0; border-radius: 6px; background: rgba(255,255,255,.2); color: #fff; font: inherit; }
-  #spaces { display: flex; gap: 6px; justify-content: center; padding-top: 8px; }
-  #spaces button { width: 18px; height: 18px; border-radius: 50%; border: 2px solid transparent; padding: 0; cursor: default; color: #fff; background: rgba(255,255,255,.2); font-size: 12px; line-height: 12px; }
-  #spaces button.active { border-color: #fff; }
+  .icon { width: 16px; height: 16px; flex: none; border-radius: 4px; }
+  .letter { display: grid; place-items: center; color: #fff; font-size: 10px; font-weight: 700; }
+  .caret { width: 16px; flex: none; text-align: center; color: var(--muted); transition: transform .15s; }
+  .folder.open .caret { transform: rotate(90deg); }
+  .folder span { font-weight: 500; }
+  .children { margin-left: 17px; padding-left: 6px; border-left: 1px solid var(--line); }
+  .sep { height: 1px; background: var(--line); margin: 10px 8px; }
+  .muted { color: var(--muted); }
+  .plus { display: grid; place-items: center; font-size: 15px; }
+
+  #import { margin: 8px 0 4px; height: 34px; border: 0; border-radius: 9px; background: var(--active); color: var(--text); font: inherit; font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+  #spaces { display: flex; gap: 10px; justify-content: center; align-items: center; padding-top: 10px; }
+  #spaces button { width: 10px; height: 10px; border-radius: 50%; border: 0; padding: 0; opacity: .5; transition: transform .15s, opacity .15s; }
+  #spaces button:hover { opacity: .85; }
+  #spaces button.active { opacity: 1; transform: scale(1.35); box-shadow: 0 0 0 2px var(--mix), 0 0 0 3.5px var(--text); }
+  #spaces .add { width: 18px; height: 18px; background: transparent; color: var(--muted); font-size: 15px; line-height: 18px; opacity: 1; }
+
+  #scrim, #snap, #palette { display: none; }
+  body.palette #scrim, body.palette #palette { display: block; }
+  body.palette #snap[src] { display: block; }
+  #snap { position: fixed; border-radius: 10px; }
+  #scrim { position: fixed; inset: 0; background: var(--scrim); backdrop-filter: blur(14px) saturate(1.2); }
+  #palette { position: fixed; top: 20%; left: 50%; transform: translateX(-50%); width: min(620px, calc(100vw - 80px)); background: var(--panel); border-radius: 14px; box-shadow: 0 24px 70px rgba(0,0,0,.35), 0 0 0 .5px rgba(0,0,0,.2); overflow: hidden; }
+  #palette input { width: 100%; height: 56px; border: 0; outline: 0; padding: 0 20px; font: 18px system-ui, -apple-system, sans-serif; background: transparent; color: var(--text); }
+  #results:not(:empty) { border-top: 1px solid var(--line); padding: 6px; }
+  #results .row { height: 40px; }
+  #results .row.active { background: var(--c); color: #fff; box-shadow: none; }
+  #results .hint { margin-left: auto; font-size: 11px; opacity: .6; }
 </style>
 </head>
 <body>
 <div id="sidebar">
+  <div id="drag"></div>
+  <div id="pill"><span></span></div>
   <div id="space-name"></div>
   <div id="tabs"></div>
   <button id="import" hidden>Import from Arc</button>
   <div id="spaces"></div>
 </div>
-<div id="backdrop"></div>
+<img id="snap" alt="">
+<div id="scrim"></div>
 <div id="palette">
   <input id="query" placeholder="Search or enter URL" spellcheck="false">
   <div id="results"></div>
@@ -49,38 +89,61 @@ const el = (tag, cls, text) => {
   if (text) e.textContent = text
   return e
 }
+const host = (url) => { try { return new URL(url).hostname.replace(/^www\./, '') } catch { return '' } }
+
+function letterTile(url) {
+  const h = host(url) || '?'
+  const tile = el('div', 'icon letter', h[0].toUpperCase())
+  const hue = [...h].reduce((a, ch) => (a * 31 + ch.charCodeAt(0)) % 360, 7)
+  tile.style.background = `hsl(${hue} 55% 48%)`
+  return tile
+}
+
+// page favicon if the tab has loaded, else the site's /favicon.ico, else a letter tile
+function favicon(t) {
+  let src = t.favicon
+  if (!src) try { const u = new URL(t.url); if (u.protocol.startsWith('http')) src = u.origin + '/favicon.ico' } catch {}
+  if (!src) return letterTile(t.url)
+  const img = el('img', 'icon')
+  img.src = src
+  img.onerror = () => img.replaceWith(letterTile(t.url))
+  return img
+}
 
 function tabRow(t, activeId) {
   const r = el('div', 'row' + (t.id === activeId ? ' active' : ''))
-  if (t.favicon) {
-    const img = el('img')
-    img.src = t.favicon
-    img.onerror = () => img.replaceWith(el('div', 'dot'))
-    r.append(img)
-  } else r.append(el('div', 'dot'))
-  r.append(el('span', '', t.title || t.url))
+  r.append(favicon(t), el('span', '', t.title || t.url))
   r.title = t.url
   r.onclick = () => { document.body.classList.remove('palette'); camber.send('select', t.id) }
   return r
 }
 
+function tabsOf(s) {
+  return [...s.pinned, ...s.today].flatMap((it) => it.children || [it])
+}
+
 let current, mode, picked = 0
 
 $('import').onclick = () => camber.send('importArc')
+$('pill').onclick = () => camber.send('openPalette', 'edit')
 
 camber.onState(({ state, sidebarOpen, offerArc }) => {
   current = state
-  $('import').hidden = !offerArc
-  $('sidebar').style.visibility = sidebarOpen ? '' : 'hidden'
   const s = state.spaces[state.active]
+  document.documentElement.style.setProperty('--c', s.color)
+  $('sidebar').style.visibility = sidebarOpen ? '' : 'hidden'
+  $('import').hidden = !offerArc
   $('space-name').textContent = s.name
-  $('sidebar').style.background = s.color
+
+  const active = tabsOf(s).find((t) => t.id === s.activeId)
+  $('pill').firstChild.textContent = active ? host(active.url) || active.url : 'Search or enter URL'
+
   const box = $('tabs')
   box.replaceChildren()
   s.pinned.forEach((it, i) => {
     if (!it.children) return box.append(tabRow(it, s.activeId))
-    const f = el('div', 'row')
-    f.append(el('span', '', (it.open ? '▾ ' : '▸ ') + it.title))
+    const f = el('div', 'row folder' + (it.open ? ' open' : ''))
+    f.append(el('div', 'caret', '›'), el('span', '', it.title))
     f.onclick = () => camber.send('toggleFolder', i)
     box.append(f)
     if (it.open) {
@@ -89,9 +152,9 @@ camber.onState(({ state, sidebarOpen, offerArc }) => {
       box.append(c)
     }
   })
-  box.append(el('hr'))
-  const nt = el('div', 'row', '+ New Tab')
-  nt.id = 'new'
+  box.append(el('div', 'sep'))
+  const nt = el('div', 'row muted')
+  nt.append(el('div', 'icon plus', '+'), el('span', '', 'New Tab'))
   nt.onclick = () => camber.send('openPalette', 'new')
   box.append(nt)
   s.today.forEach((t) => box.append(tabRow(t, s.activeId)))
@@ -105,7 +168,7 @@ camber.onState(({ state, sidebarOpen, offerArc }) => {
     b.onclick = () => camber.send('showSpace', i)
     bar.append(b)
   })
-  const add = el('button', '', '+')
+  const add = el('button', 'add', '+')
   add.title = 'New space'
   add.onclick = () => camber.send('newSpace')
   bar.append(add)
@@ -123,10 +186,6 @@ function fuzzy(q, text) {
   return pos - start + start / 100
 }
 
-function tabsOf(s) {
-  return [...s.pinned, ...s.today].flatMap((it) => it.children || [it])
-}
-
 function matches() {
   const q = $('query').value.trim().toLowerCase()
   if (!q || !current) return []
@@ -138,21 +197,35 @@ function matches() {
     .map((m) => m.t)
 }
 
+// row 0 is "go to what I typed", rows 1..n are matching tabs
 function showResults() {
+  const q = $('query').value.trim()
   const list = matches()
   picked = Math.min(picked, list.length)
   const box = $('results')
   box.replaceChildren()
+  if (!q) return
+  const looksLikeURL = !/\s/.test(q) && (q.includes('.') || q.includes(':'))
+  const go = el('div', 'row' + (picked === 0 ? ' active' : ''))
+  go.append(el('div', 'icon plus', looksLikeURL ? '↗' : '⌕'), el('span', '', looksLikeURL ? q : `Search DuckDuckGo for “${q}”`))
+  go.onclick = submit
+  box.append(go)
   list.forEach((t, i) => {
     const r = tabRow(t)
     if (i + 1 === picked) r.classList.add('active')
+    r.append(el('span', 'hint', 'Switch to tab'))
     box.append(r)
   })
 }
 
-camber.onPalette(({ mode: m, url }) => {
+camber.onPalette(({ mode: m, url, backdrop }) => {
   mode = m
   picked = 0
+  const snap = $('snap')
+  if (backdrop) {
+    snap.src = backdrop.src
+    Object.assign(snap.style, { left: backdrop.x + 'px', top: backdrop.y + 'px', width: backdrop.width + 'px', height: backdrop.height + 'px' })
+  } else snap.removeAttribute('src')
   document.body.classList.add('palette')
   const q = $('query')
   q.value = url
@@ -161,21 +234,25 @@ camber.onPalette(({ mode: m, url }) => {
   showResults()
 })
 
-const close = () => { document.body.classList.remove('palette'); camber.send('closePalette') }
-$('backdrop').onclick = close
-$('query').oninput = () => { picked = 0; showResults() }
-// picked 0 means "go to what I typed", 1..n means the nth matching tab
-$('query').onkeydown = (e) => {
+function submit() {
   const list = matches()
+  const q = $('query').value
+  document.body.classList.remove('palette')
+  if (picked) camber.send('select', list[picked - 1].id)
+  else if (q.trim()) camber.send('go', q, mode)
+  else camber.send('closePalette')
+}
+
+const close = () => { document.body.classList.remove('palette'); camber.send('closePalette') }
+$('scrim').onclick = close
+$('query').oninput = () => { picked = 0; showResults() }
+$('query').onkeydown = (e) => {
+  const n = matches().length
   if (e.key === 'Escape') close()
-  else if (e.key === 'ArrowDown') { picked = Math.min(picked + 1, list.length); showResults() }
+  else if (e.key === 'ArrowDown') { picked = Math.min(picked + 1, n); showResults() }
   else if (e.key === 'ArrowUp') { picked = Math.max(picked - 1, 0); showResults() }
-  else if (e.key === 'Enter') {
-    document.body.classList.remove('palette')
-    if (picked) camber.send('select', list[picked - 1].id)
-    else if (e.target.value.trim()) camber.send('go', e.target.value, mode)
-    else camber.send('closePalette')
-  } else return
+  else if (e.key === 'Enter') submit()
+  else return
   e.preventDefault()
 }
 </script>

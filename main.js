@@ -3,7 +3,7 @@ const fs = require('node:fs')
 const path = require('node:path')
 const arc = require('./arc')
 
-const SIDEBAR = 240
+const SIDEBAR = 248
 const GAP = 8
 const views = new Map() // tab id -> WebContentsView, only for tabs opened this run
 let win, ui
@@ -81,16 +81,21 @@ function render() {
   saveTimer = setTimeout(save, 500)
 }
 
+const contentBounds = () => {
+  const { width, height } = win.getContentBounds()
+  const x = sidebarOpen ? SIDEBAR : GAP
+  return { x, y: GAP, width: width - x - GAP, height: height - 2 * GAP }
+}
+
+// the ui view fills the window behind the tabs (sidebar + tinted frame) and
+// moves on top only while the command bar is open
 function layout() {
   win.setBackgroundColor(space().color)
   const { width, height } = win.getContentBounds()
-  // the command bar is drawn by the sidebar view, stretched over the whole window
-  ui.setBounds({ x: 0, y: 0, width: paletteOpen ? width : SIDEBAR, height })
-  ui.setVisible(sidebarOpen || paletteOpen)
-  const x = sidebarOpen ? SIDEBAR : GAP
+  ui.setBounds({ x: 0, y: 0, width, height })
   for (const [id, v] of views) {
     v.setVisible(id === space().activeId)
-    v.setBounds({ x, y: GAP, width: width - x - GAP, height: height - 2 * GAP })
+    v.setBounds(contentBounds())
   }
 }
 
@@ -98,14 +103,14 @@ function viewFor(t) {
   if (views.has(t.id)) return views.get(t.id)
   // each space's profile is its own cookie jar, like Arc's profile-per-space
   const v = new WebContentsView({ webPreferences: { partition: 'persist:' + find(t.id).s.profile } })
-  v.setBorderRadius(8)
+  v.setBorderRadius(10)
   const wc = v.webContents
   wc.on('page-title-updated', (_, title) => { t.title = title; render() })
   wc.on('page-favicon-updated', (_, icons) => { t.favicon = icons[0]; render() })
   wc.on('did-navigate', (_, url) => { t.url = url; render() })
   wc.on('did-navigate-in-page', (_, url, main) => { if (main) { t.url = url; render() } })
   wc.setWindowOpenHandler(({ url }) => { newTab(url); return { action: 'deny' } })
-  win.contentView.addChildView(v, 0) // below the sidebar view
+  win.contentView.addChildView(v)
   wc.loadURL(t.url)
   views.set(t.id, v)
   return v
@@ -183,18 +188,26 @@ function toURL(text) {
   return 'https://duckduckgo.com/?q=' + encodeURIComponent(text)
 }
 
-function openPalette(mode) {
+// css blur can't see into another view, so the backdrop is a snapshot of the page
+async function openPalette(mode) {
+  if (paletteOpen) return
   paletteOpen = true
+  const shot = await current()?.capturePage().catch(() => null)
   win.contentView.addChildView(ui) // re-adding moves it to the top
-  layout()
   const t = find(space().activeId)?.t
-  ui.webContents.send('palette', { mode, url: mode === 'edit' ? t?.url || '' : '' })
+  ui.webContents.send('palette', {
+    mode,
+    url: mode === 'edit' ? t?.url || '' : '',
+    backdrop: shot && !shot.isEmpty() ? { src: shot.resize({ width: 640 }).toDataURL(), ...contentBounds() } : null,
+  })
   ui.webContents.focus()
 }
 
 function closePalette() {
+  if (!paletteOpen) return
   paletteOpen = false
-  layout()
+  win.contentView.removeChildView(ui)
+  win.contentView.addChildView(ui, 0)
   current()?.focus()
 }
 
