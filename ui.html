@@ -136,8 +136,22 @@ function tabRow(t, activeId) {
   return r
 }
 
-function tabsOf(s) {
-  return [...s.pinned, ...s.today].flatMap((it) => it.children || [it])
+const flat = (list) => list.flatMap((it) => (it.children ? flat(it.children) : [it]))
+const tabsOf = (s) => flat([...s.pinned, ...s.today])
+
+function renderItems(list, box, activeId) {
+  for (const it of list) {
+    if (!it.children) { box.append(tabRow(it, activeId)); continue }
+    const f = el('div', 'row folder' + (it.open ? ' open' : ''))
+    f.append(el('div', 'caret', '›'), el('span', '', it.title))
+    f.onclick = () => camber.send('toggleFolder', it.id)
+    box.append(f)
+    if (it.open) {
+      const c = el('div', 'children')
+      renderItems(it.children, c, activeId)
+      box.append(c)
+    }
+  }
 }
 
 let current, mode, picked = 0
@@ -182,18 +196,7 @@ camber.onState(({ state, sidebarOpen, offerArc, tabId, extensionsVersion, nav })
 
   const box = $('tabs')
   box.replaceChildren()
-  s.pinned.forEach((it, i) => {
-    if (!it.children) return box.append(tabRow(it, s.activeId))
-    const f = el('div', 'row folder' + (it.open ? ' open' : ''))
-    f.append(el('div', 'caret', '›'), el('span', '', it.title))
-    f.onclick = () => camber.send('toggleFolder', i)
-    box.append(f)
-    if (it.open) {
-      const c = el('div', 'children')
-      it.children.forEach((t) => c.append(tabRow(t, s.activeId)))
-      box.append(c)
-    }
-  })
+  renderItems(s.pinned, box, s.activeId)
   box.append(el('div', 'sep'))
   const nt = el('div', 'row muted')
   nt.append(el('div', 'icon plus', '+'), el('span', '', 'New Tab'))

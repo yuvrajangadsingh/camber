@@ -18,12 +18,10 @@ test('imports spaces, pinned tabs and folders from an Arc sidebar file', () => {
   assert.strictEqual(work.today.length, 0)
   assert.strictEqual(home.pinned.length, 1)
 
-  // one folder level: the nested "Old" folder's tab lands in "Docs"
+  // folders keep their full depth: Docs > Old > Older
   const docs = work.pinned[1]
-  assert.deepStrictEqual(docs.children.map((t) => t.url), [
-    'https://docs.example.com/a',
-    'https://docs.example.com/b',
-    'https://old.example.com/',
-  ])
-  assert.ok(docs.children.every((t) => !t.children))
+  assert.deepStrictEqual(docs.children.map((t) => t.url || t.title), ['https://docs.example.com/a', 'https://docs.example.com/b', 'Old'])
+  const old = docs.children[2]
+  assert.deepStrictEqual(old.children.map((t) => t.url || t.title), ['https://old.example.com/', 'Older'])
+  assert.deepStrictEqual(old.children[1].children.map((t) => t.url), ['https://older.example.com/'])
 })

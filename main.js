@@ -22,12 +22,16 @@ const COLORS = ['#5b6ee1', '#d9485f', '#2f9e77', '#e8890c', '#7b52c7', '#3d8fd1'
 const uid = () => Math.random().toString(36).slice(2, 10)
 const space = () => state.spaces[state.active]
 
-// pinned holds tabs and folders ({ title, open, children: [tab] }), today holds tabs
-function* tabsOf(s) {
-  for (const it of [...s.pinned, ...s.today]) {
-    if (it.children) yield* it.children
-    else yield it
+// pinned holds tabs and folders ({ title, open, children: [tab or folder] }), today holds tabs
+function* nodes(list) {
+  for (const it of list) {
+    yield it
+    if (it.children) yield* nodes(it.children)
   }
+}
+
+function* tabsOf(s) {
+  for (const it of nodes([...s.pinned, ...s.today])) if (!it.children) yield it
 }
 
 function find(id) {
@@ -36,7 +40,7 @@ function find(id) {
 
 // removes a tab from wherever it sits in its space and returns it
 function detach(s, id) {
-  for (const list of [s.pinned, s.today, ...s.pinned.filter((f) => f.children).map((f) => f.children)]) {
+  for (const list of [s.pinned, s.today, ...[...nodes(s.pinned)].filter((f) => f.children).map((f) => f.children)]) {
     const i = list.findIndex((t) => t.id === id)
     if (i >= 0) return list.splice(i, 1)[0]
   }
@@ -71,9 +75,8 @@ if (DEMO) {
 }
 
 // CAMBER_ARC_FILE points the importer at a copy instead of Arc's live file
-const arcPath = () => DEMO
-  ? path.join(__dirname, 'demo', 'arc-demo.json')
-  : process.env.CAMBER_ARC_FILE || path.join(app.getPath('appData'), 'Arc', 'StorableSidebar.json')
+const arcPath = () => process.env.CAMBER_ARC_FILE ||
+  (DEMO ? path.join(__dirname, 'demo', 'arc-demo.json') : path.join(app.getPath('appData'), 'Arc', 'StorableSidebar.json'))
 
 function importArc() {
   let spaces
@@ -292,8 +295,8 @@ const commands = {
   forward,
   reload,
   toggleSidebar,
-  toggleFolder(i) {
-    const f = space().pinned[i]
+  toggleFolder(id) {
+    const f = [...nodes(space().pinned)].find((f) => f.id === id)
     if (f?.children) { f.open = !f.open; render() }
   },
 }
