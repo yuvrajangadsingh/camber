@@ -212,23 +212,33 @@ function matches() {
     .map((m) => m.t)
 }
 
-// row 0 is "go to what I typed", rows 1..n are matching tabs
+const looksLikeURL = (q) => !/\s/.test(q) && (q.includes('.') || q.includes(':'))
+
+// rows in display order: typed URLs go first; otherwise open tabs first (like Arc) and search last
+function items() {
+  const q = $('query').value.trim()
+  if (!q) return []
+  const tabs = matches()
+  return looksLikeURL(q) ? [null, ...tabs] : [...tabs, null]
+}
+
 function showResults() {
   const q = $('query').value.trim()
-  const list = matches()
-  picked = Math.min(picked, list.length)
+  const list = items()
+  picked = Math.min(picked, Math.max(list.length - 1, 0))
   const box = $('results')
   box.replaceChildren()
-  if (!q) return
-  const looksLikeURL = !/\s/.test(q) && (q.includes('.') || q.includes(':'))
-  const go = el('div', 'row' + (picked === 0 ? ' active' : ''))
-  go.append(el('div', 'icon plus', looksLikeURL ? '↗' : '⌕'), el('span', '', looksLikeURL ? q : `Search DuckDuckGo for “${q}”`))
-  go.onclick = submit
-  box.append(go)
   list.forEach((t, i) => {
-    const r = tabRow(t)
-    if (i + 1 === picked) r.classList.add('active')
-    r.append(el('span', 'hint', 'Switch to tab'))
+    let r
+    if (t) {
+      r = tabRow(t)
+      r.append(el('span', 'hint', 'Switch to tab'))
+    } else {
+      r = el('div', 'row')
+      r.append(el('div', 'icon plus', looksLikeURL(q) ? '↗' : '⌕'), el('span', '', looksLikeURL(q) ? q : `Search DuckDuckGo for “${q}”`))
+      r.onclick = () => { picked = i; submit() }
+    }
+    if (i === picked) r.classList.add('active')
     box.append(r)
   })
 }
@@ -250,10 +260,10 @@ camber.onPalette(({ mode: m, url, backdrop }) => {
 })
 
 function submit() {
-  const list = matches()
+  const t = items()[picked]
   const q = $('query').value
   document.body.classList.remove('palette')
-  if (picked) camber.send('select', list[picked - 1].id)
+  if (t) camber.send('select', t.id)
   else if (q.trim()) camber.send('go', q, mode)
   else camber.send('closePalette')
 }
@@ -262,7 +272,7 @@ const close = () => { document.body.classList.remove('palette'); camber.send('cl
 $('scrim').onclick = close
 $('query').oninput = () => { picked = 0; showResults() }
 $('query').onkeydown = (e) => {
-  const n = matches().length
+  const n = items().length - 1
   if (e.key === 'Escape') close()
   else if (e.key === 'ArrowDown') { picked = Math.min(picked + 1, n); showResults() }
   else if (e.key === 'ArrowUp') { picked = Math.max(picked - 1, 0); showResults() }
