@@ -1,4 +1,4 @@
-const { app, BaseWindow, WebContentsView, Menu, dialog, ipcMain, session } = require('electron')
+const { app, BaseWindow, WebContentsView, Menu, dialog, ipcMain, session, nativeTheme } = require('electron')
 const { ElectronChromeExtensions } = require('electron-chrome-extensions')
 const { installChromeWebStore } = require('electron-chrome-web-store')
 const fs = require('node:fs')
@@ -115,21 +115,36 @@ function render() {
   const offerArc = !state.importedArc && !!file && fs.existsSync(file)
   const wc = current()
   const nav = { back: !!wc?.navigationHistory.canGoBack(), forward: !!wc?.navigationHistory.canGoForward(), loading: !!wc?.isLoading() }
-  ui.webContents.send('state', { state, sidebarOpen, offerArc, tabId: wc?.id, extensionsVersion, nav })
+  ui.webContents.send('state', { state, sidebarOpen, offerArc, tabId: wc?.id, extensionsVersion, nav, platform: process.platform })
   clearTimeout(saveTimer)
   saveTimer = setTimeout(save, 500)
 }
 
+// macOS draws traffic lights over the sidebar; Windows and Linux get native caption buttons
+// (titleBarOverlay) in a strip across the top, so the page starts below that strip
+const MAC = process.platform === 'darwin'
+const CAPTION = 40
+
 const contentBounds = () => {
   const { width, height } = win.getContentBounds()
   const x = sidebarOpen ? SIDEBAR : GAP
-  return { x, y: GAP, width: width - x - GAP, height: height - 2 * GAP }
+  const y = MAC ? GAP : CAPTION
+  return { x, y, width: width - x - GAP, height: height - y - GAP }
+}
+
+// the caption buttons sit on the space's tint, roughly where the sidebar gradient starts
+function tintCaption() {
+  if (MAC) return
+  const dark = nativeTheme.shouldUseDarkColors
+  const mix = (hex, to, k) => '#' + [1, 3, 5].map((i) => Math.round(parseInt(hex.slice(i, i + 2), 16) * k + to * (1 - k)).toString(16).padStart(2, '0')).join('')
+  win.setTitleBarOverlay({ color: mix(space().color, dark ? 20 : 255, dark ? 0.42 : 0.58), symbolColor: dark ? '#f2f2f4' : '#1d1d1f', height: CAPTION })
 }
 
 // the ui view fills the window behind the tabs (sidebar + tinted frame) and
 // moves on top only while the command bar is open
 function layout() {
   win.setBackgroundColor(space().color)
+  tintCaption()
   const { width, height } = win.getContentBounds()
   ui.setBounds({ x: 0, y: 0, width, height })
   for (const [id, v] of views) {
@@ -364,7 +379,9 @@ app.on('session-created', (s) => s.setUserAgent(cleanUA(s.getUserAgent())))
 app.whenReady().then(() => {
   load()
   // the sidebar's nav row is laid out around this exact traffic light position
-  win = new BaseWindow({ width: 1280, height: 820, titleBarStyle: 'hiddenInset', trafficLightPosition: { x: 18, y: 18 }, backgroundColor: space().color })
+  win = new BaseWindow(MAC
+    ? { width: 1280, height: 820, titleBarStyle: 'hiddenInset', trafficLightPosition: { x: 18, y: 18 }, backgroundColor: space().color }
+    : { width: 1280, height: 820, titleBarStyle: 'hidden', titleBarOverlay: { height: CAPTION }, backgroundColor: space().color })
   // the extension toolbar element needs a non-sandboxed preload; ui.html is local and trusted
   ui = new WebContentsView({ webPreferences: { preload: path.join(__dirname, 'preload.js'), sandbox: false } })
   ElectronChromeExtensions.handleCRXProtocol(session.defaultSession)

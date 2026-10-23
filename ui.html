@@ -25,6 +25,10 @@
 
   #sidebar { position: absolute; inset: 0 auto 0 0; width: 248px; display: flex; flex-direction: column; padding: 0 8px 10px 10px; }
   /* row 1: the OS traffic lights sit at x 18-87, y 18-32 (trafficLightPosition in main.js) */
+  /* windows/linux: no traffic lights, nav starts at the left; the strip above the page drags the window */
+  body:not(.mac) #drag { justify-content: flex-start; height: 40px; }
+  #titlebar { display: none; position: fixed; top: 0; left: 248px; right: 0; height: 40px; -webkit-app-region: drag; }
+  body:not(.mac) #titlebar { display: block; }
   #drag { height: 50px; flex: none; -webkit-app-region: drag; display: flex; align-items: center; justify-content: flex-end; gap: 2px; padding-top: 0; }
   #drag button { -webkit-app-region: no-drag; width: 28px; height: 28px; border: 0; border-radius: 7px; background: transparent; color: var(--text); opacity: .72; display: grid; place-items: center; padding: 0; }
   #drag button:hover:not(:disabled) { background: var(--hover); opacity: 1; }
@@ -85,6 +89,7 @@
 </style>
 </head>
 <body>
+<div id="titlebar"></div>
 <div id="sidebar">
   <div id="drag">
     <button id="nav-sidebar" title="Toggle sidebar (⌘S)"><svg viewBox="0 0 20 20"><rect x="2.5" y="3.5" width="15" height="13" rx="3"/><path d="M7.5 3.5v13"/></svg></button>
@@ -170,7 +175,8 @@ for (const [id, cmd] of [['nav-sidebar', 'toggleSidebar'], ['nav-back', 'back'],
 const ICONS = { reload: '<path d="M15.5 10a5.5 5.5 0 1 1-1.6-3.9"/><path d="M15.5 3.5v3.2h-3.2"/>', stop: '<path d="M5.5 5.5l9 9M14.5 5.5l-9 9"/>' }
 
 let actionsKey
-camber.onState(({ state, sidebarOpen, offerArc, tabId, extensionsVersion, nav }) => {
+camber.onState(({ state, sidebarOpen, offerArc, tabId, extensionsVersion, nav, platform }) => {
+  document.body.classList.toggle('mac', platform === 'darwin')
   current = state
   const s = state.spaces[state.active]
   // extension buttons for this space's profile session and its active tab; the element
