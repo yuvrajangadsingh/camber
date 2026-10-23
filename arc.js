@@ -42,7 +42,10 @@ function convert(json, uid) {
       const root = items.get(s.containerIDs[s.containerIDs.indexOf('pinned') + 1])
       if (!s.containerIDs.includes('pinned') || !root) continue
       const pinned = root.childrenIds.flatMap(node)
-      spaces.push({ id: uid(), name: s.title || 'Space', color: color(s), profile: profile(s.profile), activeId: null, pinned, today: [] })
+      // unpinned ("today") tabs come over as unpinned tabs; that list has no folders
+      const flat = (list) => list.flatMap((it) => (it.children ? flat(it.children) : [it]))
+      const today = flat(items.get(s.containerIDs[s.containerIDs.indexOf('unpinned') + 1])?.childrenIds.flatMap(node) || [])
+      spaces.push({ id: uid(), name: s.title || 'Space', color: color(s), profile: profile(s.profile), activeId: null, pinned, today })
     }
 
     // favorites ("top apps") belong to a profile. A synced profile can have one container per

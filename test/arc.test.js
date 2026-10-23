@@ -11,11 +11,13 @@ test('imports spaces, pinned tabs and folders from an Arc sidebar file', () => {
   assert.strictEqual(spaces[0].color, '#ff8000')
 
   const [work, home] = spaces
-  // tab, folder, and the two halves of a split view; unpinned tabs are not imported
+  // tab, folder, and the two halves of a split view
   assert.deepStrictEqual(work.pinned.map((it) => it.title), ['Renamed Inbox', 'Docs', 'Left', 'Right'])
   // a renamed Arc tab keeps its Arc name as a fixed label
   assert.strictEqual(work.pinned[0].name, 'Renamed Inbox')
-  assert.strictEqual(work.today.length, 0)
+  // unpinned tabs come over as unpinned tabs
+  assert.deepStrictEqual(work.today.map((t) => t.url), ['https://today.example.com/'])
+  assert.strictEqual(home.today.length, 0)
   assert.strictEqual(home.pinned.length, 1)
 
   // favorites per profile; for a synced profile, this machine's container wins
