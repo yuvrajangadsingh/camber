@@ -4,6 +4,8 @@ An open-source browser with Arc's sidebar, spaces, pinned tabs and command bar.
 
 Made by [Yuvraj Angad Singh](https://github.com/yuvrajangadsingh)
 
+![camber demo: importing Arc spaces, switching spaces, and the command bar](docs/demo.gif)
+
 ## Why
 
 Arc is being sunset on Dec 22 2026. It was closed source, so nobody can fork it.
@@ -54,6 +56,10 @@ apart. File > Import from Arc reads Arc's sidebar file and brings in spaces,
 pinned tabs and folders (nested folders are flattened to one level).
 
 State lives in `state.json` in the app's user data folder.
+
+Extensions: install from the Chrome Web Store (File > Chrome Web Store), and their
+buttons show up in the sidebar. Bitwarden installs and its popup opens; autofill
+with a logged-in vault is untested, and 1Password does not work yet.
 
 ## Remote debugging
 
