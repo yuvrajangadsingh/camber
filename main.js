@@ -97,7 +97,9 @@ function importArc() {
 let saveTimer
 function render() {
   const offerArc = !state.importedArc && fs.existsSync(arcPath())
-  ui.webContents.send('state', { state, sidebarOpen, offerArc, tabId: current()?.id, extensionsVersion })
+  const wc = current()
+  const nav = { back: !!wc?.navigationHistory.canGoBack(), forward: !!wc?.navigationHistory.canGoForward(), loading: !!wc?.isLoading() }
+  ui.webContents.send('state', { state, sidebarOpen, offerArc, tabId: wc?.id, extensionsVersion, nav })
   clearTimeout(saveTimer)
   saveTimer = setTimeout(save, 500)
 }
@@ -158,6 +160,8 @@ function viewFor(t) {
   wc.on('page-favicon-updated', (_, icons) => { t.favicon = icons[0]; render() })
   wc.on('did-navigate', (_, url) => { t.url = url; render() })
   wc.on('did-navigate-in-page', (_, url, main) => { if (main) { t.url = url; render() } })
+  wc.on('did-start-loading', render)
+  wc.on('did-stop-loading', render)
   wc.setWindowOpenHandler(({ url }) => { newTab(url); return { action: 'deny' } })
   extensionsFor(profile).addTab(wc, win)
   win.contentView.addChildView(v)
@@ -265,6 +269,10 @@ function closePalette() {
 }
 
 const current = () => views.get(space().activeId)?.webContents
+const back = () => current()?.navigationHistory.goBack()
+const forward = () => current()?.navigationHistory.goForward()
+const reload = () => { const wc = current(); if (wc?.isLoading()) wc.stop(); else wc?.reload() }
+const toggleSidebar = () => { sidebarOpen = !sidebarOpen; layout(); render() }
 
 const commands = {
   select(id) { closePalette(); select(id) },
@@ -280,6 +288,10 @@ const commands = {
     else newTab(url)
   },
   showSpace: (i) => state.spaces[i] && showSpace(i),
+  back,
+  forward,
+  reload,
+  toggleSidebar,
   toggleFolder(i) {
     const f = space().pinned[i]
     if (f?.children) { f.open = !f.open; render() }
@@ -308,9 +320,9 @@ function menu() {
         item('New Tab', 'Cmd+T', () => openPalette('new')),
         item('Open Location', 'Cmd+L', () => openPalette('edit')),
         item('Close Tab', 'Cmd+W', closeTab),
-        item('Reload', 'Cmd+R', () => current()?.reload()),
-        item('Back', 'Cmd+[', () => current()?.navigationHistory.goBack()),
-        item('Forward', 'Cmd+]', () => current()?.navigationHistory.goForward()),
+        item('Reload', 'Cmd+R', reload),
+        item('Back', 'Cmd+[', back),
+        item('Forward', 'Cmd+]', forward),
         item('Pin / Unpin', 'Cmd+D', togglePin),
       ],
     },
@@ -319,7 +331,7 @@ function menu() {
       submenu: [
         item('Next Space', 'Cmd+Ctrl+Right', () => moveSpace(1)),
         item('Previous Space', 'Cmd+Ctrl+Left', () => moveSpace(-1)),
-        item('Toggle Sidebar', 'Cmd+S', () => { sidebarOpen = !sidebarOpen; layout(); render() }),
+        item('Toggle Sidebar', 'Cmd+S', toggleSidebar),
         { role: 'toggleDevTools' },
       ],
     },
@@ -333,7 +345,8 @@ app.on('session-created', (s) => s.setUserAgent(cleanUA(s.getUserAgent())))
 
 app.whenReady().then(() => {
   load()
-  win = new BaseWindow({ width: 1280, height: 820, titleBarStyle: 'hiddenInset', backgroundColor: space().color })
+  // the sidebar's nav row is laid out around this exact traffic light position
+  win = new BaseWindow({ width: 1280, height: 820, titleBarStyle: 'hiddenInset', trafficLightPosition: { x: 18, y: 18 }, backgroundColor: space().color })
   // the extension toolbar element needs a non-sandboxed preload; ui.html is local and trusted
   ui = new WebContentsView({ webPreferences: { preload: path.join(__dirname, 'preload.js'), sandbox: false } })
   ElectronChromeExtensions.handleCRXProtocol(session.defaultSession)
