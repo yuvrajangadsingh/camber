@@ -7,9 +7,13 @@
     "start": "electron .",
     "demo": "electron . --demo",
     "test": "node --test",
-    "dist": "electron-builder --mac dmg --arm64 --x64"
+    "dist": "electron-builder --mac dmg --arm64 --x64",
+    "dist:linux": "electron-builder --linux AppImage deb --x64 --arm64",
+    "dist:win": "electron-builder --win nsis --x64 --arm64",
+    "dist:all": "npm run dist && docker run --rm --platform linux/amd64 -v \"$PWD\":/project -w /project electronuserland/builder:wine sh -c \"npm run dist:linux && npm run dist:win\""
   },
   "author": "Yuvraj Angad Singh (https://github.com/yuvrajangadsingh)",
+  "homepage": "https://github.com/yuvrajangadsingh/camber",
   "license": "GPL-3.0-only",
   "type": "commonjs",
   "devDependencies": {
@@ -44,6 +48,32 @@
       "hardenedRuntime": false
     },
     "publish": null,
-    "artifactName": "${productName}-${version}-${arch}.${ext}"
+    "artifactName": "${productName}-${version}-${arch}.${ext}",
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Network",
+      "maintainer": "Yuvraj Angad Singh <36276913+yuvrajangadsingh@users.noreply.github.com>",
+      "synopsis": "An open-source browser with Arc's sidebar"
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "deb": {
+      "depends": [
+        "libgtk-3-0",
+        "libnotify4",
+        "libnss3",
+        "libxss1",
+        "libxtst6",
+        "xdg-utils",
+        "libatspi2.0-0",
+        "libuuid1",
+        "libsecret-1-0",
+        "libasound2t64 | libasound2"
+      ]
+    }
   }
 }
