@@ -91,15 +91,14 @@ function importArc() {
     return
   }
   state.importedArc = true
-  state.favorites = { ...state.favorites, ...favorites }
   // a fresh install's single starter space just gets in the way
   const [only] = state.spaces
   if (state.spaces.length === 1 && !only.pinned.length && only.today.length <= 1) {
     only.today.forEach((t) => dropView(t.id))
     state.spaces = []
   }
-  state.spaces.push(...spaces)
-  showSpace(state.spaces.length - spaces.length)
+  arc.merge(state, { spaces, favorites }).forEach(dropView)
+  showSpace(state.spaces.findIndex((s) => s.arcId === spaces[0]?.arcId))
 }
 
 let saveTimer

@@ -1,6 +1,6 @@
 const test = require('node:test')
 const assert = require('node:assert')
-const { convert } = require('../arc')
+const { convert, merge } = require('../arc')
 
 test('imports spaces, pinned tabs and folders from an Arc sidebar file', () => {
   let n = 0
@@ -30,4 +30,21 @@ test('imports spaces, pinned tabs and folders from an Arc sidebar file', () => {
   const old = docs.children[2]
   assert.deepStrictEqual(old.children.map((t) => t.url || t.title), ['https://old.example.com/', 'Older'])
   assert.deepStrictEqual(old.children[1].children.map((t) => t.url), ['https://older.example.com/'])
+})
+
+test('re-importing replaces spaces from the same Arc space instead of duplicating', () => {
+  let n = 0
+  const uid = () => 'id' + n++
+  const fixture = require('./arc-fixture.json')
+  const state = { spaces: [{ id: 'mine', name: 'Mine', pinned: [], today: [] }], favorites: {} }
+
+  assert.deepStrictEqual(merge(state, convert(fixture, uid)), [])
+  const first = state.spaces.map((s) => s.id)
+  const gone = merge(state, convert(fixture, uid))
+
+  assert.deepStrictEqual(state.spaces.map((s) => s.name), ['Mine', 'Work', 'Leisure'])
+  assert.notDeepStrictEqual(state.spaces.map((s) => s.id), first)
+  assert.strictEqual(state.favorites.default.length, 2)
+  // every tab of the first import is reported gone: 7 pinned + 1 today in Work, 1 in Leisure, 3 favorites
+  assert.strictEqual(gone.length, 12)
 })

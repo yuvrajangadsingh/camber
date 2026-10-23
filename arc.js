@@ -45,7 +45,7 @@ function convert(json, uid) {
       // unpinned ("today") tabs come over as unpinned tabs; that list has no folders
       const flat = (list) => list.flatMap((it) => (it.children ? flat(it.children) : [it]))
       const today = flat(items.get(s.containerIDs[s.containerIDs.indexOf('unpinned') + 1])?.childrenIds.flatMap(node) || [])
-      spaces.push({ id: uid(), name: s.title || 'Space', color: color(s), profile: profile(s.profile), activeId: null, pinned, today })
+      spaces.push({ id: uid(), arcId: s.id, name: s.title || 'Space', color: color(s), profile: profile(s.profile), activeId: null, pinned, today })
     }
 
     // favorites ("top apps") belong to a profile. A synced profile can have one container per
@@ -63,4 +63,22 @@ function convert(json, uid) {
   return { spaces, favorites }
 }
 
-module.exports = { convert }
+const tabIds = (list) => list.flatMap((it) => (it.children ? tabIds(it.children) : [it.id]))
+
+// Puts an import into camber's state. A space already imported from the same Arc space is
+// replaced in place (re-import never duplicates); favorites are replaced per profile.
+// Returns the ids of tabs that went away, so their views can be closed.
+function merge(state, { spaces, favorites }) {
+  const gone = []
+  for (const s of spaces) {
+    const i = state.spaces.findIndex((x) => x.arcId && x.arcId === s.arcId)
+    if (i < 0) { state.spaces.push(s); continue }
+    gone.push(...tabIds([...state.spaces[i].pinned, ...state.spaces[i].today]))
+    state.spaces[i] = s
+  }
+  for (const k of Object.keys(favorites)) gone.push(...tabIds(state.favorites?.[k] || []))
+  state.favorites = { ...state.favorites, ...favorites }
+  return gone
+}
+
+module.exports = { convert, merge }
