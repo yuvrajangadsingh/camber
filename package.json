@@ -10,7 +10,7 @@
     "dist": "electron-builder --mac dmg --arm64 --x64",
     "dist:linux": "electron-builder --linux AppImage deb --x64 --arm64",
     "dist:win": "electron-builder --win nsis --x64 --arm64",
-    "dist:all": "npm run dist && docker run --rm --platform linux/amd64 -v \"$PWD\":/project -w /project electronuserland/builder:wine sh -c \"npm run dist:linux && npm run dist:win\""
+    "dist:all": "npm run dist && docker run --rm --platform linux/amd64 -v \"$PWD\":/project electronuserland/builder:wine sh -c \"mkdir /tmp/p && cd /project && tar cf - --exclude=./dist --exclude=./.git . | (cd /tmp/p && tar xf -) && cd /tmp/p && npm run dist:linux && npm run dist:win && cp dist/*.AppImage dist/*.deb dist/*.exe /project/dist/\""
   },
   "author": "Yuvraj Angad Singh (https://github.com/yuvrajangadsingh)",
   "homepage": "https://github.com/yuvrajangadsingh/camber",
