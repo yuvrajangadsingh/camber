@@ -80,14 +80,22 @@ if (DEMO) {
 
 // CAMBER_ARC_FILE points the importer at a copy instead of Arc's live file
 const arcPath = () => process.env.CAMBER_ARC_FILE ||
-  (DEMO ? path.join(__dirname, 'demo', 'arc-demo.json') : path.join(app.getPath('appData'), 'Arc', 'StorableSidebar.json'))
+  (DEMO ? path.join(__dirname, 'demo', 'arc-demo.json')
+    : arc.arcFile(process.platform, { appData: app.getPath('appData'), localAppData: process.env.LOCALAPPDATA }, fs.readdirSync))
 
-function importArc() {
+// for a StorableSidebar.json copied over from another machine, e.g. a Mac to Linux
+async function pickArcFile() {
+  const { canceled, filePaths } = await dialog.showOpenDialog({ properties: ['openFile'], filters: [{ name: 'Arc sidebar', extensions: ['json'] }] })
+  if (!canceled) importArc(filePaths[0])
+}
+
+function importArc(file = arcPath()) {
+  if (!file) return pickArcFile()
   let spaces, favorites
   try {
-    ({ spaces, favorites } = arc.convert(JSON.parse(fs.readFileSync(arcPath(), 'utf8')), uid))
+    ({ spaces, favorites } = arc.convert(JSON.parse(fs.readFileSync(file, 'utf8')), uid))
   } catch (e) {
-    dialog.showErrorBox('Import from Arc', `Could not read ${arcPath()}\n\n${e.message}`)
+    dialog.showErrorBox('Import from Arc', `Could not read ${file}\n\n${e.message}`)
     return
   }
   state.importedArc = true
@@ -103,7 +111,8 @@ function importArc() {
 
 let saveTimer
 function render() {
-  const offerArc = !state.importedArc && fs.existsSync(arcPath())
+  const file = arcPath()
+  const offerArc = !state.importedArc && !!file && fs.existsSync(file)
   const wc = current()
   const nav = { back: !!wc?.navigationHistory.canGoBack(), forward: !!wc?.navigationHistory.canGoForward(), loading: !!wc?.isLoading() }
   ui.webContents.send('state', { state, sidebarOpen, offerArc, tabId: wc?.id, extensionsVersion, nav })
@@ -285,7 +294,7 @@ const toggleSidebar = () => { sidebarOpen = !sidebarOpen; layout(); render() }
 const commands = {
   select(id) { closePalette(); select(id) },
   newSpace,
-  importArc,
+  importArc: () => importArc(), // never a renderer-supplied path
   closePalette,
   openPalette: (mode) => openPalette(mode === 'edit' ? 'edit' : 'new'),
   go(text, mode) {
@@ -317,7 +326,8 @@ function menu() {
     {
       label: 'File',
       submenu: [
-        item('Import from Arc…', undefined, importArc),
+        item('Import from Arc…', undefined, () => importArc()),
+        item('Import Arc File…', undefined, pickArcFile),
         item('Chrome Web Store', undefined, () => newTab('https://chromewebstore.google.com/')),
       ],
     },

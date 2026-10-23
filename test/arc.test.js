@@ -1,6 +1,6 @@
 const test = require('node:test')
 const assert = require('node:assert')
-const { convert, merge } = require('../arc')
+const { convert, merge, arcFile } = require('../arc')
 
 test('imports spaces, pinned tabs and folders from an Arc sidebar file', () => {
   let n = 0
@@ -49,4 +49,18 @@ test('re-importing replaces spaces from the same Arc space instead of duplicatin
   assert.strictEqual(state.favorites.default.length, 2)
   // every tab of the first import is reported gone: 7 pinned + 1 today in Work, 1 in Leisure, 1 in Side, 3 favorites
   assert.strictEqual(gone.length, 13)
+})
+
+test('finds the Arc sidebar file per platform', () => {
+  const none = () => { throw new Error('ENOENT') }
+  assert.strictEqual(arcFile('darwin', { appData: '/home/a/Library/Application Support' }, none), '/home/a/Library/Application Support/Arc/StorableSidebar.json')
+  // Windows: the Store package folder has a publisher hash suffix
+  const packages = () => ['Microsoft.WindowsTerminal_8wekyb3d8bbwe', 'TheBrowserCompany.Arc_ttt1ap7aakyb4']
+  assert.strictEqual(
+    arcFile('win32', { localAppData: 'C:\\Users\\a\\AppData\\Local' }, packages),
+    'C:\\Users\\a\\AppData\\Local\\Packages\\TheBrowserCompany.Arc_ttt1ap7aakyb4\\LocalCache\\Local\\Arc\\StorableSidebar.json',
+  )
+  assert.strictEqual(arcFile('win32', { localAppData: 'C:\\x' }, () => ['Other.App_1']), null)
+  assert.strictEqual(arcFile('win32', { localAppData: 'C:\\x' }, none), null)
+  assert.strictEqual(arcFile('linux', { appData: '/home/a/.config' }, none), null)
 })

@@ -63,6 +63,18 @@ function convert(json, uid) {
   return { spaces, favorites }
 }
 
+// Where Arc keeps its sidebar file. Windows Arc is a Store (MSIX) package, so the folder name
+// carries a publisher hash: %LOCALAPPDATA%\Packages\TheBrowserCompany.Arc_<hash>\LocalCache\Local\Arc.
+// Arc never shipped on Linux. Returns null when there is nothing to look at.
+function arcFile(platform, { appData, localAppData }, readdir) {
+  const path = platform === 'win32' ? require('node:path').win32 : require('node:path').posix
+  if (platform === 'darwin') return path.join(appData, 'Arc', 'StorableSidebar.json')
+  if (platform !== 'win32' || !localAppData) return null
+  let pkg
+  try { pkg = readdir(path.join(localAppData, 'Packages')).find((n) => n.startsWith('TheBrowserCompany.Arc')) } catch { return null }
+  return pkg ? path.join(localAppData, 'Packages', pkg, 'LocalCache', 'Local', 'Arc', 'StorableSidebar.json') : null
+}
+
 const tabIds = (list) => list.flatMap((it) => (it.children ? tabIds(it.children) : [it.id]))
 
 // Puts an import into camber's state. A space already imported from the same Arc space is
@@ -81,4 +93,4 @@ function merge(state, { spaces, favorites }) {
   return gone
 }
 
-module.exports = { convert, merge }
+module.exports = { convert, merge, arcFile }
