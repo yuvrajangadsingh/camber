@@ -13,11 +13,23 @@ logins, pinned tabs and folders, and a keyboard command bar. No AI features.
 It embeds Chromium through Electron instead of forking it, so a new Chromium is
 an Electron version bump (Dependabot opens the PR), not a Chromium build.
 
-## Run
+## Download
+
+macOS DMGs for Apple Silicon (`arm64`) and Intel (`x64`) are on the releases page.
+v0 is not signed or notarized, so macOS will refuse to open it the first time.
+Right click camber.app, choose Open, then Open again. Or clear the quarantine flag:
+
+```sh
+xattr -dr com.apple.quarantine /Applications/camber.app
+```
+
+## Run from source
 
 ```sh
 npm install && npm start
 ```
+
+Build the DMGs yourself with `npm run dist` (output in `dist/`).
 
 macOS only for now.
 
