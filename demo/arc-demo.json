@@ -99,7 +99,7 @@
       "childrenIds": [],
       "data": {
        "tab": {
-        "savedURL": "https://github.com/",
+        "savedURL": "https://github.com/octocat/Hello-World",
         "savedTitle": "GitHub"
        }
       }
@@ -395,8 +395,8 @@
       "childrenIds": [],
       "data": {
        "tab": {
-        "savedURL": "https://github.com/electron/electron",
-        "savedTitle": "electron/electron"
+        "savedURL": "https://excalidraw.com/",
+        "savedTitle": "Excalidraw"
        }
       }
      },
@@ -408,8 +408,8 @@
       "childrenIds": [],
       "data": {
        "tab": {
-        "savedURL": "https://excalidraw.com/",
-        "savedTitle": "Excalidraw"
+        "savedURL": "https://www.tldraw.com/",
+        "savedTitle": "tldraw"
        }
       }
      },
@@ -421,8 +421,8 @@
       "childrenIds": [],
       "data": {
        "tab": {
-        "savedURL": "https://www.tldraw.com/",
-        "savedTitle": "tldraw"
+        "savedURL": "https://github.com/electron/electron",
+        "savedTitle": "electron/electron"
        }
       }
      },
