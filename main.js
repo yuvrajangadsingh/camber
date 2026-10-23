@@ -200,7 +200,7 @@ function closeTab() {
   dropView(id)
   if (s.today.some((t) => t.id === id)) detach(s, id)
   s.activeId = null
-  const next = s.today[0] || [...tabsOf(s)].find((t) => views.has(t.id))
+  const next = s.today[0] || [...tabsOf(s)].find((t) => views.has(t.id)) || [...tabsOf(s)].find((t) => t.id !== id)
   if (next) select(next.id)
   else { layout(); render() }
 }
@@ -216,12 +216,14 @@ function togglePin() {
   render()
 }
 
+// a space with tabs never shows an empty content area: last active tab, else its first tab
 function showSpace(i) {
   state.active = i
-  const v = views.get(space().activeId)
+  const s = space()
+  const id = find(s.activeId) ? s.activeId : [...tabsOf(s)][0]?.id
+  if (id) return select(id)
   layout()
   render()
-  v?.webContents.focus()
 }
 
 const moveSpace = (d) => showSpace((state.active + d + state.spaces.length) % state.spaces.length)
@@ -340,10 +342,8 @@ app.whenReady().then(() => {
   win.contentView.addChildView(ui)
   ui.webContents.loadFile('ui.html')
   ui.webContents.once('did-finish-load', () => {
-    const s = space()
-    if (s.activeId && find(s.activeId)) select(s.activeId)
-    else if (![...tabsOf(s)].length) newTab('https://duckduckgo.com')
-    render()
+    if ([...tabsOf(space())].length) showSpace(state.active)
+    else newTab('https://duckduckgo.com')
   })
   win.on('resize', layout)
   win.on('closed', () => { clearTimeout(saveTimer); if (!DEMO) save(); app.quit() })
