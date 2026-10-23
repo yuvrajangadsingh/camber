@@ -1,4 +1,7 @@
 const { contextBridge, ipcRenderer } = require('electron')
+const { injectBrowserAction } = require('electron-chrome-extensions/browser-action')
+
+injectBrowserAction()
 
 contextBridge.exposeInMainWorld('camber', {
   send: (name, ...args) => ipcRenderer.send('cmd', name, ...args),

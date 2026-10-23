@@ -1,4 +1,6 @@
-const { app, BaseWindow, WebContentsView, Menu, dialog, ipcMain } = require('electron')
+const { app, BaseWindow, WebContentsView, Menu, dialog, ipcMain, session } = require('electron')
+const { ElectronChromeExtensions } = require('electron-chrome-extensions')
+const { installChromeWebStore } = require('electron-chrome-web-store')
 const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
@@ -95,7 +97,7 @@ function importArc() {
 let saveTimer
 function render() {
   const offerArc = !state.importedArc && fs.existsSync(arcPath())
-  ui.webContents.send('state', { state, sidebarOpen, offerArc })
+  ui.webContents.send('state', { state, sidebarOpen, offerArc, tabId: current()?.id, extensionsVersion })
   clearTimeout(saveTimer)
   saveTimer = setTimeout(save, 500)
 }
@@ -118,10 +120,38 @@ function layout() {
   }
 }
 
+// chrome.* extension APIs and the Web Store, set up once per profile session
+const extensions = new Map()
+let extensionsVersion = 0
+function extensionsFor(profile) {
+  if (extensions.has(profile)) return extensions.get(profile)
+  const ses = session.fromPartition('persist:' + profile)
+  const ext = new ElectronChromeExtensions({
+    license: 'GPL-3.0',
+    session: ses,
+    createTab({ url }) {
+      newTab(url || 'about:blank')
+      return [current(), win]
+    },
+    selectTab(wc) {
+      const id = [...views].find(([, v]) => v.webContents === wc)?.[0]
+      if (id) select(id)
+    },
+  })
+  installChromeWebStore({ session: ses }).catch((e) => console.error('web store:', e))
+  // the toolbar element doesn't notice installs, so the ui rebuilds it when this changes
+  const bump = () => { extensionsVersion++; if (ui) render() }
+  ses.extensions.on('extension-loaded', bump)
+  ses.extensions.on('extension-unloaded', bump)
+  extensions.set(profile, ext)
+  return ext
+}
+
 function viewFor(t) {
   if (views.has(t.id)) return views.get(t.id)
   // each space's profile is its own cookie jar, like Arc's profile-per-space
-  const v = new WebContentsView({ webPreferences: { partition: 'persist:' + find(t.id).s.profile } })
+  const { profile } = find(t.id).s
+  const v = new WebContentsView({ webPreferences: { partition: 'persist:' + profile } })
   v.setBorderRadius(10)
   const wc = v.webContents
   wc.on('page-title-updated', (_, title) => { t.title = title; render() })
@@ -129,6 +159,7 @@ function viewFor(t) {
   wc.on('did-navigate', (_, url) => { t.url = url; render() })
   wc.on('did-navigate-in-page', (_, url, main) => { if (main) { t.url = url; render() } })
   wc.setWindowOpenHandler(({ url }) => { newTab(url); return { action: 'deny' } })
+  extensionsFor(profile).addTab(wc, win)
   win.contentView.addChildView(v)
   wc.loadURL(t.url)
   views.set(t.id, v)
@@ -141,6 +172,7 @@ function select(id) {
   state.active = state.spaces.indexOf(found.s)
   found.s.activeId = id
   const v = viewFor(found.t)
+  extensionsFor(found.s.profile).selectTab(v.webContents)
   layout()
   render()
   v.webContents.focus()
@@ -260,7 +292,13 @@ function menu() {
   const item = (label, accelerator, click) => ({ label, accelerator, click })
   Menu.setApplicationMenu(Menu.buildFromTemplate([
     { role: 'appMenu' },
-    { label: 'File', submenu: [item('Import from Arc…', undefined, importArc)] },
+    {
+      label: 'File',
+      submenu: [
+        item('Import from Arc…', undefined, importArc),
+        item('Chrome Web Store', undefined, () => newTab('https://chromewebstore.google.com/')),
+      ],
+    },
     { role: 'editMenu' },
     {
       label: 'Tab',
@@ -294,7 +332,10 @@ app.on('session-created', (s) => s.setUserAgent(cleanUA(s.getUserAgent())))
 app.whenReady().then(() => {
   load()
   win = new BaseWindow({ width: 1280, height: 820, titleBarStyle: 'hiddenInset', backgroundColor: space().color })
-  ui = new WebContentsView({ webPreferences: { preload: path.join(__dirname, 'preload.js') } })
+  // the extension toolbar element needs a non-sandboxed preload; ui.html is local and trusted
+  ui = new WebContentsView({ webPreferences: { preload: path.join(__dirname, 'preload.js'), sandbox: false } })
+  ElectronChromeExtensions.handleCRXProtocol(session.defaultSession)
+  extensionsFor(space().profile) // registers the ipc handlers the toolbar calls on load
   ui.setBackgroundColor('#00000000')
   win.contentView.addChildView(ui)
   ui.webContents.loadFile('ui.html')
