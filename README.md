@@ -60,4 +60,4 @@ no packaged or signed builds, no auto-update.
 
 ## License
 
-MIT
+Copyright (C) 2026 Yuvraj Angad Singh. Licensed under GPL-3.0-only, see LICENSE.

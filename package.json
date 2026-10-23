@@ -9,7 +9,7 @@
     "test": "node --test"
   },
   "author": "Yuvraj Angad Singh (https://github.com/yuvrajangadsingh)",
-  "license": "MIT",
+  "license": "GPL-3.0-only",
   "type": "commonjs",
   "devDependencies": {
     "electron": "^45.0.0"
