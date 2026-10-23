@@ -24,6 +24,13 @@
             "title": "Leisure",
             "profile": { "custom": { "_0": { "directoryBasename": "Profile 2", "machineID": "machine-1" } } },
             "containerIDs": ["pinned", "pin-b", "unpinned", "unpin-b"]
+          },
+          "space-d",
+          {
+            "id": "space-d",
+            "title": "Side",
+            "profile": { "custom": { "_0": { "directoryBasename": "Profile 2", "machineID": "machine-1" } } },
+            "containerIDs": ["unpinned", "unpin-d", "pinned", "pin-d"]
           }
         ],
         "items": [
@@ -50,6 +57,9 @@
           "fb0", { "id": "fb0", "title": null, "parentID": "fav-b-elsewhere", "childrenIds": [], "data": { "tab": { "savedURL": "https://other-machine.example.com/", "savedTitle": "Other Machine" } } },
           "fav-b", { "id": "fav-b", "title": null, "parentID": null, "childrenIds": ["fb1"], "data": { "itemContainer": { "containerType": { "topApps": {} } } } },
           "fb1", { "id": "fb1", "title": null, "parentID": "fav-b", "childrenIds": [], "data": { "tab": { "savedURL": "https://music.example.com/", "savedTitle": "Music" } } },
+          "pin-d", { "id": "pin-d", "title": null, "parentID": null, "childrenIds": ["td1"], "data": { "itemContainer": { "containerType": { "spaceItems": { "_0": "space-d" } } } } },
+          "td1", { "id": "td1", "title": null, "parentID": "pin-d", "childrenIds": [], "data": { "tab": { "savedURL": "https://side.example.com/", "savedTitle": "Side Project" } } },
+          "unpin-d", { "id": "unpin-d", "title": null, "parentID": null, "childrenIds": [], "data": { "itemContainer": { "containerType": { "spaceItems": { "_0": "space-d" } } } } },
           "unpin-b", { "id": "unpin-b", "title": null, "parentID": null, "childrenIds": [], "data": { "itemContainer": { "containerType": { "spaceItems": { "_0": "space-b" } } } } }
         ]
       },
