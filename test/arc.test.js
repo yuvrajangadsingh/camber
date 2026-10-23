@@ -4,7 +4,7 @@ const { convert } = require('../arc')
 
 test('imports spaces, pinned tabs and folders from an Arc sidebar file', () => {
   let n = 0
-  const spaces = convert(require('./arc-fixture.json'), () => 'id' + n++)
+  const { spaces, favorites } = convert(require('./arc-fixture.json'), () => 'id' + n++)
 
   assert.deepStrictEqual(spaces.map((s) => s.name), ['Work', 'Leisure'])
   assert.deepStrictEqual(spaces.map((s) => s.profile), ['default', 'arc-profile-2'])
@@ -17,6 +17,10 @@ test('imports spaces, pinned tabs and folders from an Arc sidebar file', () => {
   assert.strictEqual(work.pinned[0].name, 'Renamed Inbox')
   assert.strictEqual(work.today.length, 0)
   assert.strictEqual(home.pinned.length, 1)
+
+  // favorites per profile; for a synced profile, this machine's container wins
+  assert.deepStrictEqual(favorites.default.map((t) => t.name), ['Calendar', 'Chat'])
+  assert.deepStrictEqual(favorites['arc-profile-2'].map((t) => t.url), ['https://music.example.com/'])
 
   // folders keep their full depth: Docs > Old > Older
   const docs = work.pinned[1]

@@ -4,7 +4,11 @@
     "containers": [
       { "global": {} },
       {
-        "topAppsContainerIDs": [],
+        "topAppsContainerIDs": [
+          { "default": true }, "fav-a",
+          { "custom": { "_0": { "directoryBasename": "Profile 2", "machineID": "machine-2" } } }, "fav-b-elsewhere",
+          { "custom": { "_0": { "directoryBasename": "Profile 2", "machineID": "machine-1" } } }, "fav-b"
+        ],
         "spaces": [
           "space-a",
           {
@@ -39,6 +43,13 @@
           "t7", { "id": "t7", "title": null, "parentID": "unpin-a", "childrenIds": [], "data": { "tab": { "savedURL": "https://today.example.com/", "savedTitle": "Today" } } },
           "pin-b", { "id": "pin-b", "title": null, "parentID": null, "childrenIds": ["t8"], "data": { "itemContainer": { "containerType": { "spaceItems": { "_0": "space-b" } } } } },
           "t8", { "id": "t8", "title": null, "parentID": "pin-b", "childrenIds": [], "data": { "tab": { "savedURL": "https://example.org/", "savedTitle": "Example Org" } } },
+          "fav-a", { "id": "fav-a", "title": null, "parentID": null, "childrenIds": ["fa1", "fa2"], "data": { "itemContainer": { "containerType": { "topApps": { "_0": { "default": true } } } } } },
+          "fa1", { "id": "fa1", "title": null, "parentID": "fav-a", "childrenIds": [], "data": { "tab": { "savedURL": "https://calendar.example.com/", "savedTitle": "Calendar" } } },
+          "fa2", { "id": "fa2", "title": null, "parentID": "fav-a", "childrenIds": [], "data": { "tab": { "savedURL": "https://chat.example.com/", "savedTitle": "Chat" } } },
+          "fav-b-elsewhere", { "id": "fav-b-elsewhere", "title": null, "parentID": null, "childrenIds": ["fb0"], "data": { "itemContainer": { "containerType": { "topApps": {} } } } },
+          "fb0", { "id": "fb0", "title": null, "parentID": "fav-b-elsewhere", "childrenIds": [], "data": { "tab": { "savedURL": "https://other-machine.example.com/", "savedTitle": "Other Machine" } } },
+          "fav-b", { "id": "fav-b", "title": null, "parentID": null, "childrenIds": ["fb1"], "data": { "itemContainer": { "containerType": { "topApps": {} } } } },
+          "fb1", { "id": "fb1", "title": null, "parentID": "fav-b", "childrenIds": [], "data": { "tab": { "savedURL": "https://music.example.com/", "savedTitle": "Music" } } },
           "unpin-b", { "id": "unpin-b", "title": null, "parentID": null, "childrenIds": [], "data": { "itemContainer": { "containerType": { "spaceItems": { "_0": "space-b" } } } } }
         ]
       },

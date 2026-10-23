@@ -37,6 +37,12 @@
   #pill:hover { background: var(--active); }
   #pill:hover .path { display: inline; }
   #pill .host { overflow: hidden; text-overflow: ellipsis; flex: none; max-width: 100%; }
+  #favs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; padding-top: 10px; }
+  #favs:empty { display: none; }
+  #favs .fav { height: 44px; border-radius: 10px; background: var(--pill); display: grid; place-items: center; }
+  #favs .fav:hover { background: var(--hover); }
+  #favs .fav.active { background: var(--active); box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+  #favs .icon { width: 20px; height: 20px; border-radius: 5px; }
   #space-name { font-weight: 600; font-size: 12px; letter-spacing: .02em; color: var(--muted); padding: 14px 8px 6px; }
   #tabs { flex: 1; overflow-y: auto; margin: 0 -2px; padding: 0 2px; }
   #tabs::-webkit-scrollbar { display: none; }
@@ -87,6 +93,7 @@
     <button id="nav-reload" title="Reload (⌘R)"><svg viewBox="0 0 20 20"><path d="M15.5 10a5.5 5.5 0 1 1-1.6-3.9"/><path d="M15.5 3.5v3.2h-3.2"/></svg></button>
   </div>
   <div id="pill"><svg id="lock" viewBox="0 0 14 14"><rect x="3" y="6.2" width="8" height="5.8" rx="1.4"/><path d="M4.8 6.2V4.6a2.2 2.2 0 0 1 4.4 0v1.6"/></svg><span class="host"></span><span class="path"></span></div>
+  <div id="favs"></div>
   <div id="space-name"></div>
   <div id="tabs"></div>
   <button id="import" hidden>Import from Arc</button>
@@ -117,15 +124,16 @@ function letterTile(url) {
   return tile
 }
 
-// page favicon if the tab has loaded, else the site's /favicon.ico, else a letter tile
+// a letter tile until the page favicon (or the site's /favicon.ico) has actually loaded
 function favicon(t) {
+  const tile = letterTile(t.url)
   let src = t.favicon
   if (!src) try { const u = new URL(t.url); if (u.protocol.startsWith('http')) src = u.origin + '/favicon.ico' } catch {}
-  if (!src) return letterTile(t.url)
+  if (!src) return tile
   const img = el('img', 'icon')
+  img.onload = () => tile.replaceWith(img)
   img.src = src
-  img.onerror = () => img.replaceWith(letterTile(t.url))
-  return img
+  return tile
 }
 
 function tabRow(t, activeId) {
@@ -137,7 +145,7 @@ function tabRow(t, activeId) {
 }
 
 const flat = (list) => list.flatMap((it) => (it.children ? flat(it.children) : [it]))
-const tabsOf = (s) => flat([...s.pinned, ...s.today])
+const tabsOf = (s) => flat([...s.pinned, ...s.today, ...(current.favorites?.[s.profile] || [])])
 
 function renderItems(list, box, activeId) {
   for (const it of list) {
@@ -197,6 +205,15 @@ camber.onState(({ state, sidebarOpen, offerArc, tabId, extensionsVersion, nav })
   const box = $('tabs')
   box.replaceChildren()
   renderItems(s.pinned, box, s.activeId)
+
+  // favorites: an icon grid shared by every space on this profile
+  $('favs').replaceChildren(...(state.favorites?.[s.profile] || []).map((t) => {
+    const f = el('div', 'fav' + (t.id === s.activeId ? ' active' : ''))
+    f.append(favicon(t))
+    f.title = t.name || t.title || t.url
+    f.onclick = () => { document.body.classList.remove('palette'); camber.send('select', t.id) }
+    return f
+  }))
   box.append(el('div', 'sep'))
   const nt = el('div', 'row muted')
   nt.append(el('div', 'icon plus', '+'), el('span', '', 'New Tab'))

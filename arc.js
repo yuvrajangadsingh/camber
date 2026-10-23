@@ -10,13 +10,15 @@ function color(space) {
   return c ? hex(c) : '#5b6ee1'
 }
 
-function profile(space) {
-  const dir = space.profile?.custom?._0?.directoryBasename
+// Arc profile object -> camber profile name; spaces on the same Arc profile share one
+function profile(p) {
+  const dir = p?.custom?._0?.directoryBasename
   return dir ? 'arc-' + dir.toLowerCase().replace(/[^a-z0-9]+/g, '-') : 'default'
 }
 
 function convert(json, uid) {
   const spaces = []
+  const favorites = {}
   for (const c of json.sidebar.containers) {
     if (!c.spaces || !c.items) continue
     const items = new Map(c.items.filter((x) => typeof x === 'object').map((x) => [x.id, x]))
@@ -40,10 +42,22 @@ function convert(json, uid) {
       const root = items.get(s.containerIDs[s.containerIDs.indexOf('pinned') + 1])
       if (!s.containerIDs.includes('pinned') || !root) continue
       const pinned = root.childrenIds.flatMap(node)
-      spaces.push({ id: uid(), name: s.title || 'Space', color: color(s), profile: profile(s), activeId: null, pinned, today: [] })
+      spaces.push({ id: uid(), name: s.title || 'Space', color: color(s), profile: profile(s.profile), activeId: null, pinned, today: [] })
+    }
+
+    // favorites ("top apps") belong to a profile. A synced profile can have one container per
+    // machine; prefer the one whose machineID matches a space on that profile.
+    const machines = new Set(c.spaces.filter((s) => typeof s === 'object').map((s) => s.profile?.custom?._0?.machineID).filter(Boolean))
+    const tops = c.topAppsContainerIDs || []
+    for (let i = 0; i + 1 < tops.length; i += 2) {
+      const key = profile(tops[i]), root = items.get(tops[i + 1])
+      if (!root) continue
+      const local = !tops[i].custom || machines.has(tops[i].custom._0?.machineID)
+      if (favorites[key] && !local) continue
+      favorites[key] = root.childrenIds.flatMap(node).filter((t) => !t.children)
     }
   }
-  return spaces
+  return { spaces, favorites }
 }
 
 module.exports = { convert }

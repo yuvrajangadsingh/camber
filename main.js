@@ -30,12 +30,16 @@ function* nodes(list) {
   }
 }
 
+// favorites belong to the profile, so every space on that profile sees them
+const favoritesOf = (s) => state.favorites?.[s.profile] || []
+
 function* tabsOf(s) {
-  for (const it of nodes([...s.pinned, ...s.today])) if (!it.children) yield it
+  for (const it of nodes([...s.pinned, ...s.today, ...favoritesOf(s)])) if (!it.children) yield it
 }
 
+// the active space first, so a favorite shared by several spaces stays in the current one
 function find(id) {
-  for (const s of state.spaces) for (const t of tabsOf(s)) if (t.id === id) return { s, t }
+  for (const s of [space(), ...state.spaces].filter(Boolean)) for (const t of tabsOf(s)) if (t.id === id) return { s, t }
 }
 
 // removes a tab from wherever it sits in its space and returns it
@@ -79,14 +83,15 @@ const arcPath = () => process.env.CAMBER_ARC_FILE ||
   (DEMO ? path.join(__dirname, 'demo', 'arc-demo.json') : path.join(app.getPath('appData'), 'Arc', 'StorableSidebar.json'))
 
 function importArc() {
-  let spaces
+  let spaces, favorites
   try {
-    spaces = arc.convert(JSON.parse(fs.readFileSync(arcPath(), 'utf8')), uid)
+    ({ spaces, favorites } = arc.convert(JSON.parse(fs.readFileSync(arcPath(), 'utf8')), uid))
   } catch (e) {
     dialog.showErrorBox('Import from Arc', `Could not read ${arcPath()}\n\n${e.message}`)
     return
   }
   state.importedArc = true
+  state.favorites = { ...state.favorites, ...favorites }
   // a fresh install's single starter space just gets in the way
   const [only] = state.spaces
   if (state.spaces.length === 1 && !only.pinned.length && only.today.length <= 1) {
@@ -218,6 +223,7 @@ function togglePin() {
   if (!id) return
   const pinned = !s.today.some((t) => t.id === id)
   const t = detach(s, id)
+  if (!t) return // favorites stay favorites
   if (pinned) s.today.unshift(t)
   else s.pinned.push(t)
   render()
