@@ -26,7 +26,11 @@ function convert(json, uid) {
       const it = items.get(id)
       if (!it) return []
       const url = it.data.tab?.savedURL
-      if (url) return [{ id: uid(), url, title: it.title || it.data.tab.savedTitle || url }]
+      // name is the label Arc showed; title follows the live page once the tab loads
+      if (url) {
+        const name = it.title || it.data.tab.savedTitle || url
+        return [{ id: uid(), url, name, title: name }]
+      }
       return tabs(it.childrenIds)
     })
 

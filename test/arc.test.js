@@ -13,6 +13,8 @@ test('imports spaces, pinned tabs and folders from an Arc sidebar file', () => {
   const [work, home] = spaces
   // tab, folder, and the two halves of a split view; unpinned tabs are not imported
   assert.deepStrictEqual(work.pinned.map((it) => it.title), ['Renamed Inbox', 'Docs', 'Left', 'Right'])
+  // a renamed Arc tab keeps its Arc name as a fixed label
+  assert.strictEqual(work.pinned[0].name, 'Renamed Inbox')
   assert.strictEqual(work.today.length, 0)
   assert.strictEqual(home.pinned.length, 1)
 

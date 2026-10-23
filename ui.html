@@ -116,7 +116,7 @@ function favicon(t) {
 
 function tabRow(t, activeId) {
   const r = el('div', 'row' + (t.id === activeId ? ' active' : ''))
-  r.append(favicon(t), el('span', '', t.title || t.url))
+  r.append(favicon(t), el('span', '', t.name || t.title || t.url))
   r.title = t.url
   r.onclick = () => { document.body.classList.remove('palette'); camber.send('select', t.id) }
   return r
@@ -205,7 +205,7 @@ function matches() {
   const q = $('query').value.trim().toLowerCase()
   if (!q || !current) return []
   return tabsOf(current.spaces[current.active])
-    .map((t) => ({ t, score: fuzzy(q, (t.title || '') + ' ' + t.url) }))
+    .map((t) => ({ t, score: fuzzy(q, [t.name, t.title, t.url].join(' ')) }))
     .filter((m) => m.score !== null)
     .sort((a, b) => a.score - b.score)
     .slice(0, 6)
