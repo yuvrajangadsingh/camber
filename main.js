@@ -343,7 +343,8 @@ app.whenReady().then(() => {
   ui.webContents.loadFile('ui.html')
   ui.webContents.once('did-finish-load', () => {
     if ([...tabsOf(space())].length) showSpace(state.active)
-    else newTab('https://duckduckgo.com')
+    else if (!DEMO) newTab('https://duckduckgo.com')
+    else render() // demo starts empty, ready for Import from Arc
   })
   win.on('resize', layout)
   win.on('closed', () => { clearTimeout(saveTimer); if (!DEMO) save(); app.quit() })
