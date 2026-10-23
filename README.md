@@ -12,18 +12,29 @@ Arc is being sunset on Dec 22 2026. It was closed source, so nobody can fork it.
 camber keeps the parts people liked: a vertical sidebar, spaces with their own
 logins, pinned tabs and folders, and a keyboard command bar. No AI features.
 
-It embeds Chromium through Electron instead of forking it, so a new Chromium is
-an Electron version bump (Dependabot opens the PR), not a Chromium build.
+Why Electron: it ships the same Chromium as Chrome (156 today), and Electron
+already runs on macOS, Linux and Windows, so camber does too from day one with
+no Chromium fork to port. A new Chromium is an Electron version bump
+(Dependabot opens the PR), not a Chromium build.
 
 ## Download
 
-macOS DMGs for Apple Silicon (`arm64`) and Intel (`x64`) are on the releases page.
-v0 is not signed or notarized, so macOS will refuse to open it the first time.
-Right click camber.app, choose Open, then Open again. Or clear the quarantine flag:
+Builds go on the releases page. None of them are signed yet.
 
-```sh
-xattr -dr com.apple.quarantine /Applications/camber.app
-```
+| OS | Build | Tested |
+| --- | --- | --- |
+| macOS, Apple Silicon | DMG (`arm64`) | yes, launched from the DMG |
+| macOS, Intel | DMG (`x64`) | not yet |
+| Linux, x64 | AppImage, deb | not yet |
+| Linux, arm64 | AppImage, deb | deb installed and run on Ubuntu 24.04 (Xvfb) |
+| Windows, x64 | zip (installer coming) | not yet |
+| Windows, arm64 | not built yet | |
+
+- macOS: the first open is refused because the app isn't notarized. Right click
+  camber.app, Open, then Open again, or run
+  `xattr -dr com.apple.quarantine /Applications/camber.app`.
+- Linux: `sudo apt install ./camber-*.deb`, or `chmod +x camber-*.AppImage` and run it.
+- Windows: SmartScreen warns about an unknown publisher; More info, Run anyway.
 
 ## Run from source
 
@@ -31,15 +42,17 @@ xattr -dr com.apple.quarantine /Applications/camber.app
 npm install && npm start
 ```
 
-Build the DMGs yourself with `npm run dist` (output in `dist/`).
-
-macOS only for now.
+Builds land in `dist/`: `npm run dist` (macOS), `npm run dist:linux` and
+`npm run dist:win` (on Linux or in the electron-builder Docker image), or
+`npm run dist:all` for everything (needs Docker).
 
 `npm run demo` starts with a throwaway profile, and its Import from Arc reads
 `demo/arc-demo.json` (three made-up spaces of public sites) instead of your Arc
 data. Use it for screenshots and recordings.
 
 ## Use
+
+Cmd on macOS, Ctrl on Linux and Windows.
 
 | Keys | Does |
 | --- | --- |
@@ -49,11 +62,29 @@ data. Use it for screenshots and recordings.
 | Cmd+D | pin or unpin |
 | Cmd+R, Cmd+[, Cmd+] | reload, back, forward |
 | Cmd+S | toggle sidebar |
-| Cmd+Ctrl+Left/Right | previous/next space |
+| Cmd+Ctrl+Left/Right (Ctrl+Alt on Linux/Windows) | previous/next space |
 
 Each space has a profile, and each profile is its own session, so logins stay
-apart. File > Import from Arc reads Arc's sidebar file and brings in spaces,
-pinned tabs and folders (nested folders are flattened to one level).
+apart. Spaces can share a profile, like in Arc.
+
+## Moving from Arc
+
+File > Import from Arc reads Arc's sidebar file where Arc keeps it on macOS and
+on Windows. On Linux, or to bring a file from another machine, copy
+`StorableSidebar.json` over and use File > Import Arc File….
+
+What comes over:
+
+- spaces with their names and colors
+- Arc's profiles: spaces that shared a profile in Arc share logins in camber
+- favorites (the icon grid at the top), per profile
+- pinned tabs with the names you gave them in Arc
+- folders, nested as deep as you had them
+- unpinned (today) tabs
+
+Importing again replaces the spaces from the earlier import instead of adding
+copies. Not imported: history, passwords, bookmarks, extensions, Boosts and
+Easels. Split views and tab groups become plain tabs. You sign in to sites again.
 
 State lives in `state.json` in the app's user data folder.
 
@@ -73,8 +104,8 @@ Anything on your machine can then drive the browser, so leave it off normally.
 
 ## Status
 
-v0. Works for daily poking around, not yet for daily driving: no extensions,
-no packaged or signed builds, no auto-update.
+v0. Works for daily poking around, not yet for daily driving: builds are
+unsigned and there is no auto-update.
 
 ## License
 
