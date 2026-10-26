@@ -1,0 +1,95 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  ELECTRON_CACHE: ${{ github.workspace }}/.cache/electron
+  ELECTRON_BUILDER_CACHE: ${{ github.workspace }}/.cache/electron-builder
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+
+  build:
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: windows-x64
+            os: windows-latest
+            build: npx electron-builder --win nsis --x64 --publish never
+            app: dist/win-unpacked/camber.exe
+          - name: linux-x64
+            os: ubuntu-latest
+            build: npx electron-builder --linux AppImage deb --x64 --publish never
+            deb: amd64
+          - name: linux-arm64
+            os: ubuntu-24.04-arm
+            build: npx electron-builder --linux AppImage deb --arm64 --publish never
+            deb: arm64
+          # macos-13 is retired; this is GitHub's Intel macOS label
+          - name: mac-x64
+            os: macos-15-intel
+            build: npx electron-builder --mac dmg --x64 --publish never
+            app: dist/mac/camber.app/Contents/MacOS/camber
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/cache@v4
+        with:
+          path: .cache
+          key: electron-${{ matrix.name }}-${{ hashFiles('package-lock.json') }}
+      - run: npm ci
+      - run: ${{ matrix.build }}
+
+      # Linux: install the .deb like a user would, then run it on a virtual display
+      - name: smoke test (linux)
+        if: matrix.deb
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb ./dist/camber-*-${{ matrix.deb }}.deb
+          xvfb-run -a -s "-screen 0 1280x820x24" node .github/smoke.mjs /opt/camber/camber shot-${{ matrix.name }}.png
+      - name: smoke test
+        if: matrix.app
+        run: node .github/smoke.mjs ${{ matrix.app }} shot-${{ matrix.name }}.png
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: camber-${{ matrix.name }}
+          retention-days: 7
+          if-no-files-found: warn
+          path: |
+            dist/*.exe
+            dist/*.dmg
+            dist/*.AppImage
+            dist/*.deb
+            shot-*.png
