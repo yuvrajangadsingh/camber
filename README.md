@@ -19,22 +19,29 @@ no Chromium fork to port. A new Chromium is an Electron version bump
 
 ## Download
 
-Builds go on the releases page. None of them are signed yet.
+Get the installer for your system from the
+[releases page](https://github.com/yuvrajangadsingh/camber/releases) and check it
+against `SHA256SUMS.txt`.
 
-| OS | Build | Tested |
+| OS | File | Tested |
 | --- | --- | --- |
-| macOS, Apple Silicon | DMG (`arm64`) | yes, launched from the DMG |
-| macOS, Intel | DMG (`x64`) | not yet |
-| Linux, x64 | AppImage, deb | not yet |
-| Linux, arm64 | AppImage, deb | deb installed and run on Ubuntu 24.04 (Xvfb) |
-| Windows, x64 | zip (installer coming) | not yet |
+| macOS, Apple Silicon | `camber-<version>-arm64.dmg` | launched from the DMG on a Mac |
+| macOS, Intel | `camber-<version>-x64.dmg` | launched in CI (GitHub's Intel macOS runner) |
+| Windows, x64 | `camber-<version>-x64.exe` | installed silently and launched in CI |
+| Linux, x64 | `.deb`, `.AppImage` | both launched in CI (Ubuntu, virtual display) |
+| Linux, arm64 | `.deb`, `.AppImage` | deb launched in CI; AppImage not run yet |
 | Windows, arm64 | not built yet | |
 
-- macOS: the first open is refused because the app isn't notarized. Right click
-  camber.app, Open, then Open again, or run
+"Launched" means the app started, imported a sample Arc file and showed it in the
+sidebar. Nothing is signed yet:
+
+- macOS: the app is not notarized, so the first open is refused. Right click
+  camber.app, Open, then Open again. On macOS 15 and later: try to open it once,
+  then System Settings > Privacy & Security > Open Anyway. Or run
   `xattr -dr com.apple.quarantine /Applications/camber.app`.
-- Linux: `sudo apt install ./camber-*.deb`, or `chmod +x camber-*.AppImage` and run it.
 - Windows: SmartScreen warns about an unknown publisher; More info, Run anyway.
+- Linux: `sudo apt install ./camber-*.deb`, or `chmod +x camber-*.AppImage` and
+  run it. If it complains about FUSE, add `--appimage-extract-and-run`.
 
 ## Run from source
 
@@ -89,8 +96,14 @@ Easels. Split views and tab groups become plain tabs. You sign in to sites again
 State lives in `state.json` in the app's user data folder.
 
 Extensions: install from the Chrome Web Store (File > Chrome Web Store), and their
-buttons show up in the sidebar. Bitwarden installs and its popup opens; autofill
-with a logged-in vault is untested, and 1Password does not work yet.
+buttons show up in the sidebar.
+
+## Known gaps
+
+- 1Password doesn't work yet. Bitwarden installs and opens; autofill with a
+  logged-in vault is untested.
+- No auto-update, no code signing, no Windows arm64 build.
+- No sync, split view, Little Arc, Boosts or Live Folders.
 
 ## Remote debugging
 
