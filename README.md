@@ -105,7 +105,10 @@ Anything on your machine can then drive the browser, so leave it off normally.
 ## Status
 
 v0. Works for daily poking around, not yet for daily driving: builds are
-unsigned and there is no auto-update.
+unsigned and there is no auto-update. camber asks GitHub for the latest release
+at startup and every 6 hours, and shows a small note in the sidebar when a newer
+one is out. That request is the only thing it sends; it never downloads or
+installs anything by itself.
 
 ## License
 

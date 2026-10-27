@@ -65,6 +65,11 @@
   .muted { color: var(--muted); }
   .plus { display: grid; place-items: center; font-size: 15px; }
 
+  #update { display: flex; align-items: center; gap: 6px; margin: 8px 0 4px; padding: 0 4px 0 10px; height: 34px; border-radius: 9px; background: var(--active); box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+  #update[hidden] { display: none; }
+  #update a { flex: 1; color: var(--text); text-decoration: none; font-weight: 600; cursor: pointer; }
+  #update button { width: 24px; height: 24px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font-size: 15px; }
+  #update button:hover { background: var(--hover); }
   #import { margin: 8px 0 4px; height: 34px; border: 0; border-radius: 9px; background: var(--active); color: var(--text); font: inherit; font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
   #actions { display: flex; flex-wrap: wrap; gap: 2px; padding: 6px 2px 0; }
   #actions::part(action) { width: 28px; height: 28px; border-radius: 7px; background-color: transparent; }
@@ -101,6 +106,7 @@
   <div id="favs"></div>
   <div id="space-name"></div>
   <div id="tabs"></div>
+  <div id="update" hidden><a></a><button title="Dismiss">×</button></div>
   <button id="import" hidden>Import from Arc</button>
   <browser-action-list id="actions" alignment="top right"></browser-action-list>
   <div id="spaces"></div>
@@ -170,12 +176,16 @@ function renderItems(list, box, activeId) {
 let current, mode, picked = 0
 
 $('import').onclick = () => camber.send('importArc')
+$('update').querySelector('a').onclick = () => camber.send('openUpdate')
+$('update').querySelector('button').onclick = () => camber.send('dismissUpdate')
 $('pill').onclick = () => camber.send('openPalette', 'edit')
 for (const [id, cmd] of [['nav-sidebar', 'toggleSidebar'], ['nav-back', 'back'], ['nav-forward', 'forward'], ['nav-reload', 'reload']]) $(id).onclick = () => camber.send(cmd)
 const ICONS = { reload: '<path d="M15.5 10a5.5 5.5 0 1 1-1.6-3.9"/><path d="M15.5 3.5v3.2h-3.2"/>', stop: '<path d="M5.5 5.5l9 9M14.5 5.5l-9 9"/>' }
 
 let actionsKey
-camber.onState(({ state, sidebarOpen, offerArc, tabId, extensionsVersion, nav, platform }) => {
+camber.onState(({ state, sidebarOpen, offerArc, tabId, extensionsVersion, nav, platform, update }) => {
+  $('update').hidden = !update
+  if (update) $('update').querySelector('a').textContent = `camber ${update.version} is out`
   document.body.classList.toggle('mac', platform === 'darwin')
   current = state
   const s = state.spaces[state.active]

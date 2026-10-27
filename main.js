@@ -1,10 +1,11 @@
-const { app, BaseWindow, WebContentsView, Menu, dialog, ipcMain, session, nativeTheme } = require('electron')
+const { app, BaseWindow, WebContentsView, Menu, dialog, ipcMain, session, nativeTheme, net } = require('electron')
 const { ElectronChromeExtensions } = require('electron-chrome-extensions')
 const { installChromeWebStore } = require('electron-chrome-web-store')
 const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
 const arc = require('./arc')
+const updates = require('./update')
 
 const SIDEBAR = 248
 const GAP = 8
@@ -109,13 +110,21 @@ function importArc(file = arcPath()) {
   showSpace(state.spaces.findIndex((s) => s.arcId === spaces[0]?.arcId))
 }
 
+// a newer release on GitHub, shown as a dismissible banner; never downloaded or installed
+let update = null
+async function checkUpdate() {
+  update = await updates.check(app.getVersion(), net.fetch, process.env.CAMBER_UPDATE_URL || undefined)
+  render()
+}
+
 let saveTimer
 function render() {
   const file = arcPath()
   const offerArc = !state.importedArc && !!file && fs.existsSync(file)
   const wc = current()
   const nav = { back: !!wc?.navigationHistory.canGoBack(), forward: !!wc?.navigationHistory.canGoForward(), loading: !!wc?.isLoading() }
-  ui.webContents.send('state', { state, sidebarOpen, offerArc, tabId: wc?.id, extensionsVersion, nav, platform: process.platform })
+  const notice = update && state.dismissedUpdate !== update.version ? update : null
+  ui.webContents.send('state', { state, sidebarOpen, offerArc, tabId: wc?.id, extensionsVersion, nav, platform: process.platform, update: notice })
   clearTimeout(saveTimer)
   saveTimer = setTimeout(save, 500)
 }
@@ -324,6 +333,8 @@ const commands = {
   forward,
   reload,
   toggleSidebar,
+  openUpdate: () => update && newTab(update.url),
+  dismissUpdate() { if (update) { state.dismissedUpdate = update.version; render() } },
   toggleFolder(id) {
     const f = [...nodes(space().pinned)].find((f) => f.id === id)
     if (f?.children) { f.open = !f.open; render() }
@@ -390,6 +401,10 @@ app.whenReady().then(() => {
   win.contentView.addChildView(ui)
   ui.webContents.loadFile('ui.html')
   ui.webContents.once('did-finish-load', () => {
+    if (!DEMO || process.env.CAMBER_UPDATE_URL) {
+      checkUpdate()
+      setInterval(checkUpdate, 6 * 60 * 60 * 1000)
+    }
     if ([...tabsOf(space())].length) showSpace(state.active)
     else if (!DEMO) newTab('https://duckduckgo.com')
     else render() // demo starts empty, ready for Import from Arc
