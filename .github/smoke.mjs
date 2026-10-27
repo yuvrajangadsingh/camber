@@ -1,15 +1,15 @@
-// CI smoke test: node .github/smoke.mjs <app executable> <screenshot.png>
+// CI smoke test: node .github/smoke.mjs <app executable> <screenshot.png> [extra app args]
 // Starts the built app with the synthetic Arc fixture, imports it over CDP, checks the
 // sidebar has spaces, and saves a screenshot of it. Exits non-zero on any failure.
 import { spawn } from 'node:child_process'
 import { writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
-const [exe, out] = process.argv.slice(2)
+const [exe, out, ...extra] = process.argv.slice(2)
 const port = 9334
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
-const app = spawn(exe, ['--demo', `--remote-debugging-port=${port}`], {
+const app = spawn(exe, ['--demo', `--remote-debugging-port=${port}`, ...extra], {
   env: { ...process.env, CAMBER_ARC_FILE: resolve('test/arc-fixture.json') },
   stdio: 'inherit',
 })

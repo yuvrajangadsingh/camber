@@ -3,6 +3,8 @@ name: build
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 concurrency:
@@ -41,11 +43,12 @@ jobs:
           - name: windows-x64
             os: windows-latest
             build: npx electron-builder --win nsis --x64 --publish never
-            app: dist/win-unpacked/camber.exe
+            installer: true
           - name: linux-x64
             os: ubuntu-latest
             build: npx electron-builder --linux AppImage deb --x64 --publish never
             deb: amd64
+            appimage: x86_64
           - name: linux-arm64
             os: ubuntu-24.04-arm
             build: npx electron-builder --linux AppImage deb --arm64 --publish never
@@ -77,6 +80,30 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq xvfb ./dist/camber-*-${{ matrix.deb }}.deb
           xvfb-run -a -s "-screen 0 1280x820x24" node .github/smoke.mjs /opt/camber/camber shot-${{ matrix.name }}.png
+      # the AppImage has no setuid sandbox helper; say so in the log if it needs --no-sandbox
+      - name: smoke test (appimage)
+        if: matrix.appimage
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: 1
+        run: |
+          app=dist/camber-0.1.0-${{ matrix.appimage }}.AppImage
+          shot=shot-${{ matrix.name }}-appimage.png
+          if ! xvfb-run -a -s "-screen 0 1280x820x24" node .github/smoke.mjs $app $shot; then
+            echo "::warning::AppImage failed with the sandbox on, retrying with --no-sandbox"
+            xvfb-run -a -s "-screen 0 1280x820x24" node .github/smoke.mjs $app $shot --no-sandbox
+          fi
+
+      # Windows: install the NSIS installer silently, then test the installed app
+      - name: smoke test (installed, windows)
+        if: matrix.installer
+        run: |
+          ./dist/camber-0.1.0-x64.exe //S
+          for i in $(seq 1 60); do [ -f "$LOCALAPPDATA/Programs/camber/camber.exe" ] && break; sleep 2; done
+          sleep 10 # let the installer finish writing
+          ls -la "$LOCALAPPDATA/Programs/camber/"
+          taskkill //IM camber.exe //F 2>/dev/null || true
+          node .github/smoke.mjs "$LOCALAPPDATA/Programs/camber/camber.exe" shot-${{ matrix.name }}-installed.png
+
       - name: smoke test
         if: matrix.app
         run: node .github/smoke.mjs ${{ matrix.app }} shot-${{ matrix.name }}.png
