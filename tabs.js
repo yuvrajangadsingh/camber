@@ -115,9 +115,10 @@ function permission(perms, origin, name, keys) {
   if (got.includes(false)) return false
   if (got.every((x) => x === true)) return true
 }
-// a site checking before it asks (Notification.permission, permissions.query) must not read "denied" while
-// undecided; only these two, since showing a notification or opening a device still goes through the dialog
-const checked = (perms, origin, name, keys) => (permission(perms, origin, name, keys) ?? ['media', 'notifications'].includes(name)) === true
+// a site checking before it asks (Notification.permission) must not read "denied" while undecided; only
+// notifications, since showing one still goes through the dialog. Media stays unchecked until approved:
+// the same check also unlocks device labels in enumerateDevices, and getUserMedia asks on its own anyway.
+const checked = (perms, origin, name, keys) => (permission(perms, origin, name, keys) ?? name === 'notifications') === true
 
 // the origin a permission is asked and kept for: the frame's security origin when Electron gives one,
 // else its url's; a blob: url carries its creator's origin and an about: main frame inherits the page's.

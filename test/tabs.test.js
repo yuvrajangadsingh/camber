@@ -177,12 +177,12 @@ test('a site gets a permission only after its own approval', () => {
   assert.strictEqual(ask('chrome-extension://abc', 'notifications'), true)
 })
 
-test('an undecided site reads notifications and media as askable, a blocked one as denied', () => {
+test('an undecided site reads notifications as askable and media as not yet granted, a blocked one as denied', () => {
   const perms = { 'https://a.example': { notifications: false, camera: false } }
   const look = (origin, name, media) => checked(perms, origin, name, permKeys(name, media))
   assert.strictEqual(look('https://b.example', 'notifications'), true)
-  assert.strictEqual(look('https://b.example', 'media', ['video']), true)
-  assert.strictEqual(look('https://b.example', 'media', ['unknown']), true)
+  assert.strictEqual(look('https://b.example', 'media', ['video']), false)
+  assert.strictEqual(look('https://b.example', 'media', ['unknown']), false)
   assert.strictEqual(look('https://a.example', 'notifications'), false)
   assert.strictEqual(look('https://a.example', 'media', ['video']), false)
   // the rest stays a plain no until asked, and never-asked names and non-web pages stay denied
