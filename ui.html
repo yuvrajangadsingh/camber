@@ -229,6 +229,7 @@ $('space-name').ondblclick = () => {
     else if (e.key === 'Escape') done(s.name)
   }
   input.onblur = () => { if (input.isConnected) done(s.name) }
+  box.dataset.space = s.id
   box.replaceChildren(input)
   input.focus()
   input.select()
@@ -263,7 +264,8 @@ camber.onState(({ state, sidebarOpen, offerArc, tabId, extensionsVersion, nav, p
   document.documentElement.style.setProperty('--c', s.color)
   $('sidebar').style.visibility = sidebarOpen ? '' : 'hidden'
   $('import').hidden = !offerArc
-  if (!$('space-name').querySelector('input')) $('space-name').textContent = s.name
+  // a rename in progress survives re-renders, but not a switch to another space
+  if (!$('space-name').querySelector('input') || $('space-name').dataset.space !== s.id) $('space-name').textContent = s.name
 
   const active = tabsOf(s).find((t) => t.id === s.activeId)
   // address pill: lock for https, the domain, and the rest of the url on hover
