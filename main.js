@@ -79,7 +79,12 @@ const popups = (open) => ({ url }) => { if (allowed(url)) open(url); return { ac
 // the one gate for every page camber loads (typed, restored, imported, extension-made) and for a
 // page's own top-level navigations: no file:, data:, javascript: or chrome: page ever loads
 const loadable = (url) => tabs.loadable(url) || void console.warn('camber: did not load', String(url).slice(0, 80))
-const guard = (wc) => wc.on('will-navigate', (e, url) => { if (!loadable(url)) e.preventDefault() })
+function guard(wc) {
+  // extensions (chrome.tabs.update) call loadURL directly, and a loadURL never fires will-navigate
+  const load = wc.loadURL.bind(wc)
+  wc.loadURL = (url, ...rest) => loadable(url) ? load(url, ...rest) : Promise.resolve()
+  wc.on('will-navigate', (e, url) => { if (!loadable(url)) e.preventDefault() })
+}
 function openLink(url) {
   if (!allowed(url)) return
   if (!ready) return waiting.push(url)
@@ -286,11 +291,11 @@ function viewFor(t, adopt) {
   // clicking the other pane of a split makes it the active tab
   wc.on('before-mouse-event', (_, m) => { if (m.type === 'mouseDown' && pair()?.includes(t.id) && space().activeId !== t.id) select(t.id) })
   wc.setWindowOpenHandler(popups(newTab))
-  guard(wc)
+  if (!adopt) guard(wc) // a peek was guarded when it opened
   extensionsFor(profile).addTab(wc, win)
   win.contentView.addChildView(v)
   // a tab whose url can't load stays in the sidebar with its url, on a blank page
-  if (!adopt && loadable(t.url)) wc.loadURL(t.url)
+  if (!adopt) wc.loadURL(t.url)
   views.set(t.id, v)
   return v
 }
