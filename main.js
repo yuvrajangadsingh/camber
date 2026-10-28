@@ -74,6 +74,8 @@ const waiting = []
 const linksIn = (argv) => argv.filter((a) => /^https?:\/\//i.test(a))
 function openLink(url) {
   if (!ready) return waiting.push(url)
+  const i = state.spaces.findIndex((s) => s.id === tabs.route(state.routes, url))
+  if (i >= 0) state.active = i
   newTab(url)
   if (win.isMinimized()) win.restore()
   win.focus()
@@ -273,6 +275,20 @@ function togglePin() {
   render()
 }
 
+// Air Traffic Control: links from other apps to this site open in this space.
+// www. is dropped so a rule made on www.github.com also covers github.com.
+const siteOf = (url) => { try { return new URL(url).hostname.replace(/^www\./, '') } catch {} }
+function routeHere() {
+  const host = siteOf(find(space().activeId)?.t.url)
+  if (!host) return
+  state.routes = [...(state.routes || []).filter((r) => r.host !== host), { host, spaceId: space().id }]
+  render()
+}
+function forgetRoute() {
+  const host = siteOf(find(space().activeId)?.t.url)
+  if (host) { state.routes = (state.routes || []).filter((r) => !tabs.covers(r, host)); render() }
+}
+
 // Arc-style archive: today tabs nobody activated for archiveHours (state.json, default 12, 0 = off) are closed
 const archiveHours = () => state.archiveHours ?? 12
 function archive() {
@@ -408,6 +424,9 @@ function menu() {
         item('Back', 'CmdOrCtrl+[', back),
         item('Forward', 'CmdOrCtrl+]', forward),
         item('Pin / Unpin', 'CmdOrCtrl+D', togglePin),
+        { type: 'separator' },
+        item('Always Open Links to This Site in This Space', undefined, routeHere),
+        item('Forget Routing Rule for This Site', undefined, forgetRoute),
         { type: 'separator' },
         {
           label: 'Archive After',

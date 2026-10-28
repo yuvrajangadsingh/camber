@@ -1,6 +1,6 @@
 const test = require('node:test')
 const assert = require('node:assert')
-const { touch, afterClose, move, prune } = require('../tabs')
+const { touch, afterClose, move, prune, route } = require('../tabs')
 
 test('closing a tab goes back to the one used before it', () => {
   let mru = []
@@ -78,4 +78,18 @@ test('archives today tabs that sat unused past the limit', () => {
   s = state()
   assert.deepStrictEqual(prune(s, now, 0), [])
   assert.deepStrictEqual(s, state())
+})
+
+test('links route to a space by host, subdomains included, never by substring', () => {
+  const routes = [{ host: 'github.com', spaceId: 'work' }, { host: 'gist.github.com', spaceId: 'side' }, { host: 'news.ycombinator.com', spaceId: 'fun' }]
+  assert.strictEqual(route(routes, 'https://github.com/a/b'), 'work')
+  assert.strictEqual(route(routes, 'https://www.github.com/'), 'work')
+  assert.strictEqual(route(routes, 'https://GITHUB.com/x'), 'work')
+  assert.strictEqual(route(routes, 'https://gist.github.com/x'), 'side')
+  assert.strictEqual(route(routes, 'https://a.gist.github.com/x'), 'side')
+  assert.strictEqual(route(routes, 'https://notgithub.com/'), undefined)
+  assert.strictEqual(route(routes, 'https://github.com.evil.io/'), undefined)
+  assert.strictEqual(route(routes, 'https://ycombinator.com/'), undefined)
+  assert.strictEqual(route(routes, 'not a url'), undefined)
+  assert.strictEqual(route(undefined, 'https://github.com/'), undefined)
 })

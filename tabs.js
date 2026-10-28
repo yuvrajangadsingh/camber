@@ -70,4 +70,15 @@ function prune(state, now, hours) {
   return gone
 }
 
-module.exports = { nodes, detach, move, touch, afterClose, prune }
+// Air Traffic Control rules ({ host, spaceId }): a rule for github.com covers gist.github.com
+// but not notgithub.com
+const covers = (rule, host) => host === rule.host || host.endsWith('.' + rule.host)
+
+// the space a link from outside opens in, or undefined; the most specific rule wins
+function route(routes, url) {
+  let host
+  try { host = new URL(url).hostname } catch { return }
+  return (routes || []).filter((r) => covers(r, host)).sort((a, b) => b.host.length - a.host.length)[0]?.spaceId
+}
+
+module.exports = { nodes, detach, move, touch, afterClose, prune, covers, route }
