@@ -661,7 +661,32 @@ function menu() {
 // Google refuses sign-in from user agents that mention Electron, so look like plain Chrome
 const cleanUA = (ua) => ua.replace(/ Electron\/\S+/, '').replace(new RegExp(` ${app.getName()}\\/\\S+`), '')
 app.userAgentFallback = cleanUA(app.userAgentFallback)
-app.on('session-created', (s) => s.setUserAgent(cleanUA(s.getUserAgent())))
+app.on('session-created', (s) => {
+  s.setUserAgent(cleanUA(s.getUserAgent()))
+  guardPermissions(s)
+})
+
+// without these handlers Electron grants every site whatever macOS has granted camber.
+// Each origin is asked once per permission (camera and microphone separately) and the answer kept.
+function guardPermissions(ses) {
+  const originOf = (url) => { try { const u = new URL(url); return u.protocol + '//' + u.host } catch { return '' } }
+  ses.setPermissionCheckHandler((_, name, origin, details) =>
+    tabs.permission(state.permissions, originOf(origin), name, tabs.permKeys(name, [details.mediaType])) === true)
+  ses.setPermissionRequestHandler(async (_, name, callback, details) => {
+    const origin = originOf(details.requestingUrl), keys = tabs.permKeys(name, details.mediaTypes)
+    const known = tabs.permission(state.permissions, origin, name, keys)
+    if (known !== undefined) return callback(known)
+    const { response } = await dialog.showMessageBox(BaseWindow.getFocusedWindow() || win, {
+      message: `${new URL(origin).host} wants to use your ${keys.join(' and ')}`,
+      buttons: ['Allow', 'Block'], defaultId: 1, cancelId: 1,
+    })
+    const ok = response === 0
+    state.permissions ??= {}
+    state.permissions[origin] = { ...state.permissions[origin], ...Object.fromEntries(keys.map((k) => [k, ok])) }
+    render()
+    callback(ok)
+  })
+}
 
 app.whenReady().then(() => {
   if (!solo) return

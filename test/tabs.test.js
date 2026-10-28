@@ -1,6 +1,6 @@
 const test = require('node:test')
 const assert = require('node:assert')
-const { touch, forget, afterClose, move, prune, web, pairOk, route: tabsRoute } = require('../tabs')
+const { touch, forget, afterClose, move, prune, web, permKeys, permission, pairOk, route: tabsRoute } = require('../tabs')
 
 test('closing a tab goes back to the one used before it', () => {
   let mru = []
@@ -133,4 +133,26 @@ test('a split is two different tabs of its own space', () => {
   assert.strictEqual(pairOk(['fav', 'a'], ids), true)
   // b moved to another space, a duplicate, the wrong length, junk from state.json
   for (const split of [['a', 'x'], ['a', 'a'], ['a'], ['a', 'b', 'fav'], null, 'ab', {}]) assert.strictEqual(pairOk(split, ids), false, JSON.stringify(split))
+})
+
+test('a site gets a permission only after its own approval', () => {
+  const perms = { 'https://meet.example': { microphone: true, camera: false }, 'https://maps.example': { geolocation: true } }
+  const ask = (origin, name, media) => permission(perms, origin, name, permKeys(name, media))
+  assert.strictEqual(ask('https://meet.example', 'media', ['audio']), true)
+  assert.strictEqual(ask('https://meet.example', 'media', ['video']), false)
+  // one blocked device blocks the request; one unknown device means asking
+  assert.strictEqual(ask('https://meet.example', 'media', ['audio', 'video']), false)
+  assert.strictEqual(ask('https://maps.example', 'media', ['audio']), undefined)
+  assert.strictEqual(ask('https://other.example', 'media', ['audio']), undefined)
+  assert.strictEqual(ask('https://maps.example', 'geolocation'), true)
+  assert.strictEqual(ask('https://meet.example', 'geolocation'), undefined)
+  assert.strictEqual(ask('https://other.example', 'media', []), undefined)
+  assert.strictEqual(ask('https://other.example', 'media', ['unknown']), undefined)
+  assert.deepStrictEqual(permKeys('media', ['audio', 'video']), ['microphone', 'camera'])
+  // not on the ask list, or not a web page: denied without asking
+  assert.strictEqual(ask('https://maps.example', 'openExternal'), false)
+  assert.strictEqual(ask('file://', 'media', ['audio']), false)
+  assert.strictEqual(ask('', 'notifications'), false)
+  assert.strictEqual(ask('https://other.example', 'fullscreen'), true)
+  assert.strictEqual(ask('chrome-extension://abc', 'notifications'), true)
 })

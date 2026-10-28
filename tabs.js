@@ -89,6 +89,24 @@ function web(url) {
   try { return ['http:', 'https:'].includes(new URL(url).protocol) } catch { return false }
 }
 
+// site permissions: these are asked once per origin and remembered in `perms`
+// ({ [origin]: { [key]: true | false } }); fullscreen and copy-to-clipboard just work; the rest is denied
+const ASK = ['media', 'geolocation', 'notifications', 'clipboard-read', 'midi', 'midiSysex', 'hid', 'usb', 'serial', 'bluetooth', 'display-capture', 'idle-detection', 'pointerLock']
+const FREE = ['fullscreen', 'clipboard-sanitized-write']
+// the keys a request is remembered under: a camera + mic request is two, so each is answered on its own
+const permKeys = (name, media) => {
+  const keys = name === 'media' ? (media || []).map((m) => ({ audio: 'microphone', video: 'camera' })[m] || m) : [name]
+  return keys.length ? keys : [name]
+}
+// true, false, or undefined when the user has to be asked. An extension gets its own requests.
+function permission(perms, origin, name, keys) {
+  if (String(origin).startsWith('chrome-extension:') || FREE.includes(name)) return true
+  if (!ASK.includes(name) || !/^https?:/.test(origin)) return false
+  const got = keys.map((k) => perms?.[origin]?.[k])
+  if (got.includes(false)) return false
+  if (got.every((x) => x === true)) return true
+}
+
 // Air Traffic Control rules ({ host, spaceId }): a rule for github.com covers gist.github.com
 // but not notgithub.com
 const covers = (rule, host) => host === rule.host || host.endsWith('.' + rule.host)
@@ -105,4 +123,4 @@ function route(routes, url, spaceIds) {
 // today and favorites); a restored one that points elsewhere is dropped
 const pairOk = (split, ids) => Array.isArray(split) && split.length === 2 && split[0] !== split[1] && split.every((id) => ids.includes(id))
 
-module.exports = { nodes, detach, move, touch, forget, afterClose, prune, web, covers, route, pairOk }
+module.exports = { nodes, detach, move, touch, forget, afterClose, prune, web, permKeys, permission, covers, route, pairOk }
