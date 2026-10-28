@@ -183,14 +183,25 @@ function tintCaption() {
 // auto picture-in-picture: a tab that goes off screen with a video playing pops it out, and
 // coming back puts it back. Top-level <video> only; one inside an iframe (most embeds) stays.
 const autoPip = () => state.autoPip ?? true
+// The scripts run in their own world, so a page's own querySelectorAll or pictureInPictureElement
+// never runs inside them, and the user gesture goes only to a page with a video to pop out.
+const WORLD = 1001
+const PLAYING = `document.pictureInPictureEnabled && [...document.querySelectorAll('video')].some((v) => !v.paused && !v.ended && v.readyState > 2 && !v.disablePictureInPicture)`
 const POP = `(async () => {
   try {
-    const v = [...document.querySelectorAll('video')].find((v) => !v.paused && !v.ended && v.readyState > 2)
-    if (v && document.pictureInPictureEnabled && !v.disablePictureInPicture) await v.requestPictureInPicture()
+    const v = [...document.querySelectorAll('video')].find((v) => !v.paused && !v.ended && v.readyState > 2 && !v.disablePictureInPicture)
+    if (v) await v.requestPictureInPicture()
   } catch (e) { console.warn('camber pip:', e.message) }
 })()`
 const UNPOP = `document.pictureInPictureElement && document.exitPictureInPicture().catch((e) => console.warn('camber pip:', e.message))`
-const pip = (wc, code) => { if ((code === UNPOP || autoPip()) && !wc.isDestroyed()) wc.executeJavaScript(code, true).catch(() => {}) }
+const run = (wc, code, gesture) => wc.executeJavaScriptInIsolatedWorld(WORLD, [{ code }], gesture)
+async function pip(wc, pop) {
+  if (!autoPip() || wc.isDestroyed() || !/^https?:/.test(wc.getURL())) return
+  try {
+    if (!pop) await run(wc, UNPOP, false)
+    else if (await run(wc, PLAYING, false)) await run(wc, POP, true)
+  } catch {}
+}
 
 // the ui view fills the window behind the tabs (sidebar + tinted frame) and
 // moves on top only while the command bar is open. Leaving a space ends its split.
@@ -207,7 +218,7 @@ function layout() {
   p?.forEach((id) => viewFor(find(id).t))
   const shown = new Set([...views.keys()].filter((id) => p ? p.includes(id) : id === space().activeId))
   for (const [id, v] of views) {
-    if (onScreen.has(id) !== shown.has(id)) pip(v.webContents, shown.has(id) ? UNPOP : POP)
+    if (onScreen.has(id) !== shown.has(id)) pip(v.webContents, !shown.has(id))
     v.setVisible(shown.has(id))
     v.setBounds(paneBounds(id))
   }
