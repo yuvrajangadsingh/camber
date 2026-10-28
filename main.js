@@ -700,10 +700,14 @@ function guardPermissions(ses) {
     const origin = tabs.permOrigin(details.securityOrigin, details.requestingUrl, wc.getURL(), details.isMainFrame !== false), keys = tabs.permKeys(name, details.mediaTypes)
     const known = () => tabs.permission(state.permissions, origin, name, keys)
     if (known() !== undefined) return callback(known())
-    askPermission(origin + ' ' + keys.join(' '), async () => {
+    const key = origin + ' ' + keys.join(' ')
+    if (!askers.has(key)) askers.set(key, new Set())
+    askers.get(key).add(wc)
+    askPermission(key, async () => {
       if (known() !== undefined) return known() // answered while this one waited its turn
-      if (wc.isDestroyed()) return false // the page closed while waiting: no dialog, nothing remembered
-      const { response } = await dialog.showMessageBox(ownerOf(wc), {
+      const live = [...askers.get(key)].filter((w) => !w.isDestroyed())
+      if (!live.length) return false // every page that asked closed while waiting: no dialog, nothing remembered
+      const { response } = await dialog.showMessageBox(ownerOf(live[0]), {
         message: `${new URL(origin).host} wants to use your ${keys.join(' and ')}`,
         buttons: ['Allow', 'Block'], defaultId: 1, cancelId: 1,
       })
@@ -712,10 +716,11 @@ function guardPermissions(ses) {
       state.permissions[origin] = { ...state.permissions[origin], ...Object.fromEntries(keys.map((k) => [k, ok])) }
       render()
       return ok
-    }).then(callback, () => callback(false))
+    }).finally(() => askers.delete(key)).then(callback, () => callback(false))
   })
 }
 const askPermission = tabs.asker()
+const askers = new Map() // question key -> the pages waiting on it, so a closed one does not answer for the rest
 
 app.whenReady().then(() => {
   if (!solo) return
