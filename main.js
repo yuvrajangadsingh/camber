@@ -195,12 +195,16 @@ const POP = `(async () => {
 })()`
 const UNPOP = `document.pictureInPictureElement && document.exitPictureInPicture().catch((e) => console.warn('camber pip:', e.message))`
 const run = (wc, code, gesture) => wc.executeJavaScriptInIsolatedWorld(WORLD, [{ code }], gesture)
-async function pip(wc, pop) {
+// one request at a time per page: coming back waits for a pop-out still in flight, then undoes it
+const pipQueue = new WeakMap()
+function pip(wc, pop) {
   if (!autoPip() || wc.isDestroyed() || !/^https?:/.test(wc.getURL())) return
-  try {
+  const job = async () => {
+    if (wc.isDestroyed()) return
     if (!pop) await run(wc, UNPOP, false)
     else if (await run(wc, PLAYING, false)) await run(wc, POP, true)
-  } catch {}
+  }
+  pipQueue.set(wc, (pipQueue.get(wc) || Promise.resolve()).then(job).catch(() => {}))
 }
 
 // the ui view fills the window behind the tabs (sidebar + tinted frame) and
