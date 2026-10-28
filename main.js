@@ -702,6 +702,7 @@ function guardPermissions(ses) {
     if (known() !== undefined) return callback(known())
     askPermission(origin + ' ' + keys.join(' '), async () => {
       if (known() !== undefined) return known() // answered while this one waited its turn
+      if (wc.isDestroyed()) return false // the page closed while waiting: no dialog, nothing remembered
       const { response } = await dialog.showMessageBox(ownerOf(wc), {
         message: `${new URL(origin).host} wants to use your ${keys.join(' and ')}`,
         buttons: ['Allow', 'Block'], defaultId: 1, cancelId: 1,
