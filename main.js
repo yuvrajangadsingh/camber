@@ -163,7 +163,11 @@ const contentBounds = () => {
 
 // split view: while the active tab is one of the space's pair (s.split = [left, right]), both
 // share the content area half and half
-const pair = () => { const s = space(); return s.split?.includes(s.activeId) && s.split.every(find) ? s.split : null }
+const pair = () => {
+  const s = space()
+  if (s.split && !tabs.pairOk(s.split, [...tabsOf(s)].map((t) => t.id))) s.split = null
+  return s.split?.includes(s.activeId) ? s.split : null
+}
 function paneBounds(id) {
   const b = contentBounds()
   const p = pair()

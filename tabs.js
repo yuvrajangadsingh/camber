@@ -101,4 +101,8 @@ function route(routes, url, spaceIds) {
   return (routes || []).filter((r) => covers(r, host) && spaceIds.includes(r.spaceId)).sort((a, b) => b.host.length - a.host.length)[0]?.spaceId
 }
 
-module.exports = { nodes, detach, move, touch, forget, afterClose, prune, web, covers, route }
+// a space's split ([left, right]) holds two different tabs of that space (`ids`: its pinned,
+// today and favorites); a restored one that points elsewhere is dropped
+const pairOk = (split, ids) => Array.isArray(split) && split.length === 2 && split[0] !== split[1] && split.every((id) => ids.includes(id))
+
+module.exports = { nodes, detach, move, touch, forget, afterClose, prune, web, covers, route, pairOk }
