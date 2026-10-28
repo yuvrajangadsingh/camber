@@ -202,6 +202,7 @@ function select(id) {
   state.active = state.spaces.indexOf(found.s)
   found.s.activeId = id
   found.s.mru = tabs.touch(found.s.mru, id)
+  found.t.lastActive = Date.now()
   const v = viewFor(found.t)
   extensionsFor(found.s.profile).selectTab(v.webContents)
   layout()
@@ -247,6 +248,20 @@ function togglePin() {
   if (!t) return // favorites stay favorites
   if (pinned) s.today.unshift(t)
   else s.pinned.push(t)
+  render()
+}
+
+// Arc-style archive: today tabs nobody activated for archiveHours (state.json, default 12, 0 = off) are closed
+const archiveHours = () => state.archiveHours ?? 12
+function archive() {
+  const gone = tabs.prune(state, Date.now(), archiveHours())
+  gone.forEach(dropView)
+  return gone.length
+}
+
+function setArchiveHours(h) {
+  state.archiveHours = h
+  archive()
   render()
 }
 
@@ -327,7 +342,9 @@ const commands = {
   dismissUpdate() { if (update) { state.dismissedUpdate = update.version; render() } },
   // drag and drop in the sidebar; a today tab dropped among the pinned ones is pinned, and back
   moveTab(id, target, where) {
-    if (tabs.move(space(), id, target, where)) render()
+    if (!tabs.move(space(), id, target, where)) return
+    find(id).t.lastActive = Date.now() // an old pinned tab dropped into today isn't archived right away
+    render()
   },
   renameSpace(id, name) {
     const s = state.spaces.find((s) => s.id === id)
@@ -367,6 +384,12 @@ function menu() {
         item('Back', 'CmdOrCtrl+[', back),
         item('Forward', 'CmdOrCtrl+]', forward),
         item('Pin / Unpin', 'CmdOrCtrl+D', togglePin),
+        { type: 'separator' },
+        {
+          label: 'Archive After',
+          submenu: [[12, '12h'], [24, '24h'], [0, 'Off']].map(([h, label]) =>
+            ({ label, type: 'radio', checked: archiveHours() === h, click: () => setArchiveHours(h) })),
+        },
       ],
     },
     {
@@ -388,6 +411,11 @@ app.on('session-created', (s) => s.setUserAgent(cleanUA(s.getUserAgent())))
 
 app.whenReady().then(() => {
   load()
+  // the tab that was on screen at quit counts as just used, then the overnight backlog goes
+  const shown = find(space().activeId)
+  if (shown) shown.t.lastActive = Date.now()
+  archive()
+  setInterval(() => { if (archive()) render() }, 10 * 60 * 1000)
   // the sidebar's nav row is laid out around this exact traffic light position
   win = new BaseWindow(MAC
     ? { width: 1280, height: 820, titleBarStyle: 'hiddenInset', trafficLightPosition: { x: 18, y: 18 }, backgroundColor: space().color }

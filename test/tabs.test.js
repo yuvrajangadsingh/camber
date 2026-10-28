@@ -1,6 +1,6 @@
 const test = require('node:test')
 const assert = require('node:assert')
-const { touch, afterClose, move } = require('../tabs')
+const { touch, afterClose, move, prune } = require('../tabs')
 
 test('closing a tab goes back to the one used before it', () => {
   let mru = []
@@ -55,4 +55,27 @@ test('drag and drop moves tabs within and across pinned, folders and today', () 
   s = space()
   for (const [id, target] of [['f', 'today'], ['nope', 'p1'], ['t1', 'nope'], ['t1', 't1']]) assert.strictEqual(move(s, id, target, 'before'), false)
   assert.deepStrictEqual(s, space())
+})
+
+test('archives today tabs that sat unused past the limit', () => {
+  const h = 3600000, now = 100 * h
+  const state = () => ({
+    active: 0,
+    spaces: [
+      { activeId: 'shown', pinned: [{ id: 'pin', lastActive: 0 }], today: [{ id: 'shown', lastActive: 0 }, { id: 'old', lastActive: now - 13 * h }, { id: 'fresh', lastActive: now - 11 * h }, { id: 'new' }] },
+      { activeId: 'old2', pinned: [], today: [{ id: 'old2', lastActive: now - 30 * h }, { id: 'mid', lastActive: now - 20 * h }] },
+    ],
+  })
+
+  let s = state()
+  assert.deepStrictEqual(prune(s, now, 12), ['old', 'old2', 'mid'])
+  assert.deepStrictEqual(s.spaces[0].today.map((t) => t.id), ['shown', 'fresh', 'new'])
+  assert.strictEqual(s.spaces[0].today[2].lastActive, now)
+  assert.strictEqual(s.spaces[0].pinned.length, 1)
+
+  s = state()
+  assert.deepStrictEqual(prune(s, now, 24), ['old2'])
+  s = state()
+  assert.deepStrictEqual(prune(s, now, 0), [])
+  assert.deepStrictEqual(s, state())
 })
