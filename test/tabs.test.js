@@ -1,6 +1,6 @@
 const test = require('node:test')
 const assert = require('node:assert')
-const { touch, forget, afterClose, move, prune, route } = require('../tabs')
+const { touch, forget, afterClose, move, prune, web, route } = require('../tabs')
 
 test('closing a tab goes back to the one used before it', () => {
   let mru = []
@@ -115,4 +115,10 @@ test('links route to a space by host, subdomains included, never by substring', 
   assert.strictEqual(route(routes, 'https://ycombinator.com/'), undefined)
   assert.strictEqual(route(routes, 'not a url'), undefined)
   assert.strictEqual(route(undefined, 'https://github.com/'), undefined)
+})
+
+test('only http, https and about:blank pass as outside input', () => {
+  for (const u of ['https://github.com/', 'http://localhost:3000/x', 'HTTPS://Example.com', 'about:blank']) assert.strictEqual(web(u), true, u)
+  for (const u of ['javascript:alert(1)', 'JavaScript:alert(1)', 'file:///etc/passwd', 'data:text/html,hi', 'chrome://settings', 'about:config',
+    'chrome-extension://abc/x.html', 'ftp://x.com/', '/Applications/camber.app', '--flag', 'github.com', '', undefined, null]) assert.strictEqual(web(u), false, String(u))
 })

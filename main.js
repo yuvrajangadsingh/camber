@@ -71,8 +71,13 @@ const solo = app.requestSingleInstanceLock()
 if (!solo) app.quit()
 let ready = false
 const waiting = []
-const linksIn = (argv) => argv.filter((a) => /^https?:\/\//i.test(a))
+const linksIn = (argv) => argv.filter(tabs.web)
+// outside input that isn't http(s) is dropped here, before it can reach a loadURL
+const allowed = (url) => tabs.web(url) || void console.warn('camber: dropped a non-web URL:', String(url).slice(0, 80))
+// window.open from a page never makes a window; an allowed URL goes to `open` instead
+const popups = (open) => ({ url }) => { if (allowed(url)) open(url); return { action: 'deny' } }
 function openLink(url) {
+  if (!allowed(url)) return
   if (!ready) return waiting.push(url)
   const i = state.spaces.findIndex((s) => s.id === tabs.route(state.routes, url))
   if (i < 0) return little(url)
@@ -251,7 +256,7 @@ function viewFor(t) {
   wc.on('did-stop-loading', render)
   // clicking the other pane of a split makes it the active tab
   wc.on('before-mouse-event', (_, m) => { if (m.type === 'mouseDown' && pair()?.includes(t.id) && space().activeId !== t.id) select(t.id) })
-  wc.setWindowOpenHandler(({ url }) => { newTab(url); return { action: 'deny' } })
+  wc.setWindowOpenHandler(popups(newTab))
   extensionsFor(profile).addTab(wc, win)
   win.contentView.addChildView(v)
   wc.loadURL(t.url)
@@ -376,7 +381,7 @@ function little(url) {
   wc.on('did-navigate-in-page', sync)
   wc.on('page-title-updated', (_, title) => w.setTitle(title))
   // links that want a new window stay in this one
-  wc.setWindowOpenHandler(({ url }) => { wc.loadURL(url); return { action: 'deny' } })
+  wc.setWindowOpenHandler(popups((u) => wc.loadURL(u)))
   bar.webContents.loadFile('little.html')
   bar.webContents.once('did-finish-load', () => {
     sync()
@@ -401,9 +406,10 @@ function intoCamber(w) {
 const littleCommands = {
   back: (w) => littles.get(w).page.webContents.navigationHistory.goBack(),
   go(w, text) {
-    const l = littles.get(w)
-    l.url = toURL(String(text))
-    l.page.webContents.loadURL(l.url)
+    const l = littles.get(w), url = toURL(String(text))
+    if (!allowed(url)) return
+    l.url = url
+    l.page.webContents.loadURL(url)
   },
   open: intoCamber,
 }
@@ -475,7 +481,7 @@ async function openPeek(id) {
   wc.on('did-navigate', (_, url) => { p.url = url; render() })
   wc.on('did-navigate-in-page', (_, url, main) => { if (main) { p.url = url; render() } })
   wc.on('before-input-event', (e, i) => { if (i.type === 'keyDown' && i.key === 'Escape') { e.preventDefault(); closePeek() } })
-  wc.setWindowOpenHandler(({ url }) => { wc.loadURL(url); return { action: 'deny' } })
+  wc.setWindowOpenHandler(popups((u) => wc.loadURL(u)))
   win.contentView.addChildView(ui)
   win.contentView.addChildView(p.view)
   ui.webContents.send('palette', { mode: 'peek', backdrop: snap })

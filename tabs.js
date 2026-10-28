@@ -82,6 +82,13 @@ function prune(state, now, hours) {
   return gone
 }
 
+// the only URLs camber loads from outside input (other apps, page popups, the little window's
+// address): http and https, plus about:blank. file:, javascript:, data:, chrome: and the rest don't pass.
+function web(url) {
+  if (url === 'about:blank') return true
+  try { return ['http:', 'https:'].includes(new URL(url).protocol) } catch { return false }
+}
+
 // Air Traffic Control rules ({ host, spaceId }): a rule for github.com covers gist.github.com
 // but not notgithub.com
 const covers = (rule, host) => host === rule.host || host.endsWith('.' + rule.host)
@@ -93,4 +100,4 @@ function route(routes, url) {
   return (routes || []).filter((r) => covers(r, host)).sort((a, b) => b.host.length - a.host.length)[0]?.spaceId
 }
 
-module.exports = { nodes, detach, move, touch, forget, afterClose, prune, covers, route }
+module.exports = { nodes, detach, move, touch, forget, afterClose, prune, web, covers, route }
