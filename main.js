@@ -330,15 +330,20 @@ const closeSplit = () => { space().split = null; layout(); render() }
 
 // Air Traffic Control: links from other apps to this site open in this space.
 // www. is dropped so a rule made on www.github.com also covers github.com.
+// With a little window in front, its page is the site meant.
 const siteOf = (url) => { try { return new URL(url).hostname.replace(/^www\./, '') } catch {} }
+function frontSite() {
+  const l = littles.get(focusedLittle())
+  return siteOf(l ? l.page.webContents.getURL() || l.url : find(space().activeId)?.t.url)
+}
 function routeHere() {
-  const host = siteOf(find(space().activeId)?.t.url)
+  const host = frontSite()
   if (!host) return
   state.routes = [...(state.routes || []).filter((r) => r.host !== host), { host, spaceId: space().id }]
   render()
 }
 function forgetRoute() {
-  const host = siteOf(find(space().activeId)?.t.url)
+  const host = frontSite()
   if (host) { state.routes = (state.routes || []).filter((r) => !tabs.covers(r, host)); render() }
 }
 
