@@ -70,7 +70,8 @@ Cmd on macOS, Ctrl on Linux and Windows.
 | Cmd+R, Cmd+[, Cmd+] | reload, back, forward |
 | Cmd+S | toggle sidebar |
 | Cmd+Shift+N | little window |
-| Cmd+O | move the little window's page into the current space |
+| Cmd+O | move the little window's page (or a peek) into the current space |
+| Cmd+Shift+\ | close split view |
 | Cmd+Ctrl+Left/Right (Ctrl+Alt on Linux/Windows) | previous/next space |
 
 Drag tabs to reorder them; dropping a tab among the pinned ones pins it, and
@@ -78,6 +79,13 @@ dropping a pinned tab under New Tab unpins it. Double-click a space's name to
 rename it. Closing a tab takes you back to the tab you were on before it.
 Unpinned tabs you haven't opened for 12 hours are closed (Tab > Archive After:
 12h, 24h or Off).
+
+Tab > Split with… (or "split" in the command bar) puts another tab of the space
+next to the current one; click a side to make it active. Shift+click a favorite,
+or Cmd+Shift+click a pinned tab, to peek at it over the page: Esc or a click
+outside closes it, Open as tab keeps it. A playing video pops out into
+picture-in-picture when you leave its tab and comes back when you return (Tab >
+Pop out video when leaving a tab).
 
 File > Make camber the Default Browser sends links from other apps to camber.
 On Linux, if that doesn't stick, run
