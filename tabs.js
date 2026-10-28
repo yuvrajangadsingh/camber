@@ -93,11 +93,12 @@ function web(url) {
 // but not notgithub.com
 const covers = (rule, host) => host === rule.host || host.endsWith('.' + rule.host)
 
-// the space a link from outside opens in, or undefined; the most specific rule wins
-function route(routes, url) {
+// the space a link from outside opens in, or undefined; the most specific rule whose space
+// (one of `spaceIds`) still exists wins
+function route(routes, url, spaceIds) {
   let host
   try { host = new URL(url).hostname } catch { return }
-  return (routes || []).filter((r) => covers(r, host)).sort((a, b) => b.host.length - a.host.length)[0]?.spaceId
+  return (routes || []).filter((r) => covers(r, host) && spaceIds.includes(r.spaceId)).sort((a, b) => b.host.length - a.host.length)[0]?.spaceId
 }
 
 module.exports = { nodes, detach, move, touch, forget, afterClose, prune, web, covers, route }

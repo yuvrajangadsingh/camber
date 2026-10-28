@@ -45,7 +45,9 @@ test('re-importing replaces spaces from the same Arc space instead of duplicatin
   const gone = merge(state, convert(fixture, uid))
 
   assert.deepStrictEqual(state.spaces.map((s) => s.name), ['Mine', 'Work', 'Leisure', 'Side'])
-  assert.notDeepStrictEqual(state.spaces.map((s) => s.id), first)
+  // same Arc spaces, same ids: routing rules made after the first import keep working
+  assert.deepStrictEqual(state.spaces.map((s) => s.id), first)
+  assert.strictEqual(first[1], 'arc-' + state.spaces[1].arcId)
   assert.strictEqual(state.favorites.default.length, 2)
   // every tab of the first import is reported gone: 7 pinned + 1 today in Work, 1 in Leisure, 1 in Side, 3 favorites
   assert.strictEqual(gone.length, 13)

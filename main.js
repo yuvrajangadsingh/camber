@@ -79,7 +79,8 @@ const popups = (open) => ({ url }) => { if (allowed(url)) open(url); return { ac
 function openLink(url) {
   if (!allowed(url)) return
   if (!ready) return waiting.push(url)
-  const i = state.spaces.findIndex((s) => s.id === tabs.route(state.routes, url))
+  const ids = state.spaces.map((s) => s.id)
+  const i = ids.indexOf(tabs.route(state.routes, url, ids))
   if (i < 0) return little(url)
   state.active = i
   newTab(url)

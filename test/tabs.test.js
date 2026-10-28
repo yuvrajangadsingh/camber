@@ -1,6 +1,6 @@
 const test = require('node:test')
 const assert = require('node:assert')
-const { touch, forget, afterClose, move, prune, web, route } = require('../tabs')
+const { touch, forget, afterClose, move, prune, web, route: tabsRoute } = require('../tabs')
 
 test('closing a tab goes back to the one used before it', () => {
   let mru = []
@@ -105,6 +105,7 @@ test('archives today tabs that sat unused past the limit', () => {
 
 test('links route to a space by host, subdomains included, never by substring', () => {
   const routes = [{ host: 'github.com', spaceId: 'work' }, { host: 'gist.github.com', spaceId: 'side' }, { host: 'news.ycombinator.com', spaceId: 'fun' }]
+  const route = (r, url, ids = ['work', 'side', 'fun']) => tabsRoute(r, url, ids)
   assert.strictEqual(route(routes, 'https://github.com/a/b'), 'work')
   assert.strictEqual(route(routes, 'https://www.github.com/'), 'work')
   assert.strictEqual(route(routes, 'https://GITHUB.com/x'), 'work')
@@ -115,6 +116,9 @@ test('links route to a space by host, subdomains included, never by substring', 
   assert.strictEqual(route(routes, 'https://ycombinator.com/'), undefined)
   assert.strictEqual(route(routes, 'not a url'), undefined)
   assert.strictEqual(route(undefined, 'https://github.com/'), undefined)
+  // a rule for a space that is gone is skipped, so it can't hide a broader rule that still works
+  assert.strictEqual(route(routes, 'https://gist.github.com/x', ['work']), 'work')
+  assert.strictEqual(route(routes, 'https://github.com/', []), undefined)
 })
 
 test('only http, https and about:blank pass as outside input', () => {
