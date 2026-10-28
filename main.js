@@ -432,6 +432,8 @@ function little(url) {
   return w
 }
 
+// the window a page sits in: its little window, else the main one (tabs and the peek)
+const ownerOf = (wc) => [...littles].find(([, l]) => l.page.webContents === wc)?.[0] || win
 const focusedLittle = () => { const w = BaseWindow.getFocusedWindow(); return littles.has(w) ? w : null }
 
 function intoCamber(w) {
@@ -691,7 +693,7 @@ function guardPermissions(ses) {
     if (known() !== undefined) return callback(known())
     askPermission(origin + ' ' + keys.join(' '), async () => {
       if (known() !== undefined) return known() // answered while this one waited its turn
-      const { response } = await dialog.showMessageBox(BaseWindow.getFocusedWindow() || win, {
+      const { response } = await dialog.showMessageBox(ownerOf(wc), {
         message: `${new URL(origin).host} wants to use your ${keys.join(' and ')}`,
         buttons: ['Allow', 'Block'], defaultId: 1, cancelId: 1,
       })
