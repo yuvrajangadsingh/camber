@@ -507,7 +507,7 @@ async function openPalette(mode) {
 // Peek: Shift+click a favorite (Cmd+Shift+click a pinned tab) opens it in a panel over the page,
 // on the space's profile. ui.html draws the panel and its strip under the page view; Esc or a
 // click outside closes it, Open as tab (Cmd+O) moves it to today.
-let peek = null // { view, url, loading }; loading is set once its page has been asked for
+let peek = null // { view, url, loading, toTab }; loading is set once its page has been asked for
 const INSET = 48
 const STRIP = 36
 const peekBounds = () => {
@@ -538,6 +538,7 @@ async function openPeek(id) {
   fitPeek()
   wc.loadURL(t.url)
   p.loading = true
+  if (p.toTab) return peekToTab()
   render()
   wc.focus()
 }
@@ -554,10 +555,11 @@ function closePeek(keep) {
 }
 
 // the peeked page moves into the tab with its form input, history and scroll. Before its
-// page is asked for (the backdrop is still being taken) there is nothing to move, so it waits.
+// page is asked for (the backdrop is still being taken) there is nothing to move, so openPeek does it then.
 function peekToTab() {
   const p = peek
-  if (!p?.loading) return
+  if (!p) return
+  if (!p.loading) { p.toTab = true; return }
   closePeek(true)
   newTab(p.url, p.view)
 }
