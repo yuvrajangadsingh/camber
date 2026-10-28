@@ -5,6 +5,7 @@ const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
 const arc = require('./arc')
+const tabs = require('./tabs')
 const updates = require('./update')
 
 const SIDEBAR = 248
@@ -215,6 +216,7 @@ function select(id) {
   if (!found) return
   state.active = state.spaces.indexOf(found.s)
   found.s.activeId = id
+  found.s.mru = tabs.touch(found.s.mru, id)
   const v = viewFor(found.t)
   extensionsFor(found.s.profile).selectTab(v.webContents)
   layout()
@@ -236,7 +238,8 @@ function dropView(id) {
   views.delete(id)
 }
 
-// closing a pinned tab only unloads it, like Arc; closing a today tab removes it
+// closing a pinned tab only unloads it, like Arc; closing a today tab removes it.
+// The space then goes back to the tab used before, not to the top of the list.
 function closeTab() {
   const s = space()
   const id = s.activeId
@@ -244,8 +247,9 @@ function closeTab() {
   dropView(id)
   if (s.today.some((t) => t.id === id)) detach(s, id)
   s.activeId = null
-  const next = s.today[0] || [...tabsOf(s)].find((t) => views.has(t.id)) || [...tabsOf(s)].find((t) => t.id !== id)
-  if (next) select(next.id)
+  const ids = [...tabsOf(s)].map((t) => t.id)
+  const next = tabs.afterClose(id, s.mru, ids, s.today.map((t) => t.id), ids.filter((i) => views.has(i)))
+  if (next) select(next)
   else { layout(); render() }
 }
 
