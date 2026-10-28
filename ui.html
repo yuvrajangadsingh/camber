@@ -64,7 +64,11 @@
   .folder.open .caret { transform: rotate(90deg); }
   .folder span { font-weight: 500; }
   .children { margin-left: 17px; padding-left: 6px; border-left: 1px solid var(--line); }
-  .sep { height: 1px; background: var(--line); margin: 10px 8px; }
+  /* the line is drawn 1px tall in a 21px box so it is easy to drop onto */
+  .sep { height: 21px; margin: 0 8px; background: linear-gradient(var(--line), var(--line)) center / 100% 1px no-repeat; border-radius: 9px; }
+  .drop-before { box-shadow: inset 0 2px 0 var(--c) !important; }
+  .drop-after { box-shadow: inset 0 -2px 0 var(--c) !important; }
+  .drop-inside, .sep.drop-end, .row.drop-start { background-color: var(--hover); box-shadow: inset 0 0 0 1.5px var(--c) !important; }
   .muted { color: var(--muted); }
   .plus { display: grid; place-items: center; font-size: 15px; }
 
@@ -165,6 +169,9 @@ function sidebarRow(t, activeId, today) {
   x.title = today ? 'Close tab' : 'Unload tab'
   x.onclick = (e) => { e.stopPropagation(); camber.send('closeTab', t.id) }
   r.append(x)
+  r.draggable = true
+  r.dataset.drop = t.id
+  r.ondragstart = (e) => { e.dataTransfer.setData(DRAG, t.id); e.dataTransfer.effectAllowed = 'move' }
   return r
 }
 
@@ -177,6 +184,7 @@ function renderItems(list, box, activeId) {
     const f = el('div', 'row folder' + (it.open ? ' open' : ''))
     f.append(el('div', 'caret', '›'), el('span', '', it.title))
     f.onclick = () => camber.send('toggleFolder', it.id)
+    f.dataset.drop = it.id
     box.append(f)
     if (it.open) {
       const c = el('div', 'children')
@@ -243,8 +251,11 @@ camber.onState(({ state, sidebarOpen, offerArc, tabId, extensionsVersion, nav, p
     f.onclick = () => { document.body.classList.remove('palette'); camber.send('select', t.id) }
     return f
   }))
-  box.append(el('div', 'sep'))
+  const sep = el('div', 'sep')
+  sep.dataset.drop = 'pinned'
+  box.append(sep)
   const nt = el('div', 'row muted')
+  nt.dataset.drop = 'today'
   nt.append(el('div', 'icon plus', '+'), el('span', '', 'New Tab'))
   nt.onclick = () => camber.send('openPalette', 'new')
   box.append(nt)
@@ -264,6 +275,40 @@ camber.onState(({ state, sidebarOpen, offerArc, tabId, extensionsVersion, nav, p
   add.onclick = () => camber.send('newSpace')
   bar.append(add)
 })
+
+// drag to reorder: a tab row takes the drop above or below itself, a folder row above itself
+// or inside, the line under the pinned tabs means "pin at the end", New Tab "unpin at the top"
+const DRAG = 'application/x-camber-tab'
+let marked
+function dropSpot(e) {
+  const r = e.dataTransfer.types.includes(DRAG) && e.target.closest('[data-drop]')
+  if (!r) return null
+  const { drop } = r.dataset
+  if (drop === 'pinned') return { r, drop, where: 'end' }
+  if (drop === 'today') return { r, drop, where: 'start' }
+  const { top, height } = r.getBoundingClientRect()
+  const low = e.clientY - top > height / 2
+  return { r, drop, where: r.classList.contains('folder') ? (low ? 'inside' : 'before') : (low ? 'after' : 'before') }
+}
+function mark(spot) {
+  marked?.classList.remove('drop-before', 'drop-after', 'drop-inside', 'drop-end', 'drop-start')
+  marked = spot?.r
+  marked?.classList.add('drop-' + spot.where)
+}
+$('tabs').ondragover = (e) => {
+  const spot = dropSpot(e)
+  mark(spot)
+  if (spot) { e.preventDefault(); e.dataTransfer.dropEffect = 'move' }
+}
+$('tabs').ondragleave = (e) => { if (!$('tabs').contains(e.relatedTarget)) mark(null) }
+$('tabs').ondragend = () => mark(null)
+$('tabs').ondrop = (e) => {
+  const spot = dropSpot(e)
+  mark(null)
+  if (!spot) return
+  e.preventDefault()
+  camber.send('moveTab', e.dataTransfer.getData(DRAG), spot.drop, spot.where)
+}
 
 // subsequence match: every query char in order; tighter spans score lower (better)
 function fuzzy(q, text) {

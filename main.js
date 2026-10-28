@@ -6,6 +6,7 @@ const os = require('node:os')
 const path = require('node:path')
 const arc = require('./arc')
 const tabs = require('./tabs')
+const { nodes, detach } = tabs
 const updates = require('./update')
 
 const SIDEBAR = 248
@@ -24,14 +25,6 @@ const COLORS = ['#5b6ee1', '#d9485f', '#2f9e77', '#e8890c', '#7b52c7', '#3d8fd1'
 const uid = () => Math.random().toString(36).slice(2, 10)
 const space = () => state.spaces[state.active]
 
-// pinned holds tabs and folders ({ title, open, children: [tab or folder] }), today holds tabs
-function* nodes(list) {
-  for (const it of list) {
-    yield it
-    if (it.children) yield* nodes(it.children)
-  }
-}
-
 // favorites belong to the profile, so every space on that profile sees them
 const favoritesOf = (s) => state.favorites?.[s.profile] || []
 
@@ -42,14 +35,6 @@ function* tabsOf(s) {
 // the active space first, so a favorite shared by several spaces stays in the current one
 function find(id) {
   for (const s of [space(), ...state.spaces].filter(Boolean)) for (const t of tabsOf(s)) if (t.id === id) return { s, t }
-}
-
-// removes a tab from wherever it sits in its space and returns it
-function detach(s, id) {
-  for (const list of [s.pinned, s.today, ...[...nodes(s.pinned)].filter((f) => f.children).map((f) => f.children)]) {
-    const i = list.findIndex((t) => t.id === id)
-    if (i >= 0) return list.splice(i, 1)[0]
-  }
 }
 
 const statePath = () => path.join(app.getPath('userData'), 'state.json')
@@ -340,6 +325,10 @@ const commands = {
   toggleSidebar,
   openUpdate: () => update && newTab(update.url),
   dismissUpdate() { if (update) { state.dismissedUpdate = update.version; render() } },
+  // drag and drop in the sidebar; a today tab dropped among the pinned ones is pinned, and back
+  moveTab(id, target, where) {
+    if (tabs.move(space(), id, target, where)) render()
+  },
   toggleFolder(id) {
     const f = [...nodes(space().pinned)].find((f) => f.id === id)
     if (f?.children) { f.open = !f.open; render() }
