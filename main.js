@@ -324,7 +324,7 @@ function closeTab(id = space().activeId) {
   const shown = id === s.activeId
   dropView(id)
   if (s.today.some((t) => t.id === id)) { detach(s, id); tabs.forget(s, [id]) }
-  if (!shown) return render()
+  if (!shown) { layout(); return render() } // a split's other pane takes the full width
   closePeek() // it was over the page that just went
   s.activeId = null
   const ids = [...tabsOf(s)].map((t) => t.id)
@@ -381,6 +381,7 @@ function archive() {
 function setArchiveHours(h) {
   state.archiveHours = h
   archive()
+  layout()
   render()
 }
 
@@ -669,7 +670,7 @@ app.whenReady().then(() => {
   const shown = find(space().activeId)
   if (shown) shown.t.lastActive = Date.now()
   archive()
-  setInterval(() => { if (archive()) render() }, 10 * 60 * 1000)
+  setInterval(() => { if (archive()) { layout(); render() } }, 10 * 60 * 1000)
   // the sidebar's nav row is laid out around this exact traffic light position
   win = new BaseWindow(MAC
     ? { width: 1280, height: 820, titleBarStyle: 'hiddenInset', trafficLightPosition: { x: 18, y: 18 }, backgroundColor: space().color }
