@@ -695,9 +695,9 @@ app.on('session-created', (s) => {
 // Each origin is asked once per permission (camera and microphone separately) and the answer kept.
 function guardPermissions(ses) {
   ses.setPermissionCheckHandler((wc, name, origin, details) =>
-    tabs.checked(state.permissions, tabs.permOrigin(details.securityOrigin || origin, details.requestingUrl, wc?.getURL()), name, tabs.permKeys(name, [details.mediaType])))
+    tabs.checked(state.permissions, tabs.permOrigin(details.securityOrigin || origin, details.requestingUrl, wc?.getURL(), details.isMainFrame !== false), name, tabs.permKeys(name, [details.mediaType])))
   ses.setPermissionRequestHandler((wc, name, callback, details) => {
-    const origin = tabs.permOrigin(details.securityOrigin, details.requestingUrl, wc.getURL()), keys = tabs.permKeys(name, details.mediaTypes)
+    const origin = tabs.permOrigin(details.securityOrigin, details.requestingUrl, wc.getURL(), details.isMainFrame !== false), keys = tabs.permKeys(name, details.mediaTypes)
     const known = () => tabs.permission(state.permissions, origin, name, keys)
     if (known() !== undefined) return callback(known())
     askPermission(origin + ' ' + keys.join(' '), async () => {

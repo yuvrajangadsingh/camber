@@ -120,10 +120,12 @@ function permission(perms, origin, name, keys) {
 const checked = (perms, origin, name, keys) => (permission(perms, origin, name, keys) ?? ['media', 'notifications'].includes(name)) === true
 
 // the origin a permission is asked and kept for: the frame's security origin when Electron gives one,
-// else its url's; a blob: url carries its creator's origin and an about: frame inherits the page's
-function permOrigin(frameOrigin, url, pageUrl) {
+// else its url's; a blob: url carries its creator's origin and an about: main frame inherits the page's.
+// A nested about: frame with no given origin gets none (so it is denied): it may belong to an embedded site,
+// and keying it to the top page would hand it that page's answers.
+function permOrigin(frameOrigin, url, pageUrl, main = true) {
   const of = (u) => { try { const x = new URL(u); return x.protocol === 'blob:' ? of(x.pathname) : x.host ? x.protocol + '//' + x.host : '' } catch { return '' } }
-  return of(frameOrigin) || (/^about:/.test(url) ? of(pageUrl) : of(url))
+  return of(frameOrigin) || (/^about:/.test(url) ? (main ? of(pageUrl) : '') : of(url))
 }
 
 // permission dialogs: one on screen at a time, a request for an answer already being asked shares it,

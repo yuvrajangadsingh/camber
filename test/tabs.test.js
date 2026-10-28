@@ -223,6 +223,7 @@ test('a permission belongs to the origin of the frame asking', () => {
   assert.strictEqual(permOrigin('https://meet.example', 'blob:https://meet.example/1b2c', 'https://top.example/'), 'https://meet.example')
   assert.strictEqual(permOrigin(undefined, 'blob:https://meet.example/1b2c', 'https://top.example/'), 'https://meet.example')
   assert.strictEqual(permOrigin(undefined, 'about:blank', 'https://top.example/a'), 'https://top.example')
+  assert.strictEqual(permOrigin(undefined, 'about:blank', 'https://top.example/a', false), '', 'a nested blank frame is not the page')
   assert.strictEqual(permOrigin('https://meet.example/', 'about:blank', 'https://top.example/'), 'https://meet.example')
   assert.strictEqual(permOrigin(undefined, 'chrome-extension://abc/popup.html'), 'chrome-extension://abc')
   // no origin to give: denied downstream
