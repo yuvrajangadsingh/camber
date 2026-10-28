@@ -71,6 +71,12 @@ Cmd on macOS, Ctrl on Linux and Windows.
 | Cmd+S | toggle sidebar |
 | Cmd+Ctrl+Left/Right (Ctrl+Alt on Linux/Windows) | previous/next space |
 
+Drag tabs to reorder them; dropping a tab among the pinned ones pins it, and
+dropping a pinned tab under New Tab unpins it. Double-click a space's name to
+rename it. Closing a tab takes you back to the tab you were on before it.
+Unpinned tabs you haven't opened for 12 hours are closed (Tab > Archive After:
+12h, 24h or Off).
+
 Each space has a profile, and each profile is its own session, so logins stay
 apart. Spaces can share a profile, like in Arc.
 
