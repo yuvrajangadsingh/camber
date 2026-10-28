@@ -49,6 +49,15 @@
       "target": "dmg",
       "hardenedRuntime": false
     },
+    "protocols": [
+      {
+        "name": "Web page",
+        "schemes": [
+          "http",
+          "https"
+        ]
+      }
+    ],
     "publish": null,
     "artifactName": "${productName}-${version}-${arch}.${ext}",
     "linux": {

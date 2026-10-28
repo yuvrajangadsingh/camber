@@ -65,6 +65,28 @@ if (DEMO) {
   app.setPath('userData', fs.mkdtempSync(path.join(os.tmpdir(), 'camber-demo-')))
 }
 
+// links from other apps: macOS sends open-url, Windows and Linux start a second camber with
+// the URL in argv, which hands it over here and quits. Links that come before the ui is up wait.
+const solo = app.requestSingleInstanceLock()
+if (!solo) app.quit()
+let ready = false
+const waiting = []
+const linksIn = (argv) => argv.filter((a) => /^https?:\/\//i.test(a))
+function openLink(url) {
+  if (!ready) return waiting.push(url)
+  newTab(url)
+  if (win.isMinimized()) win.restore()
+  win.focus()
+}
+app.on('open-url', (e, url) => { e.preventDefault(); openLink(url) })
+app.on('second-instance', (_, argv) => linksIn(argv).forEach(openLink))
+
+// no window or dialog on success, the OS settings pane shows the result
+function makeDefault() {
+  const ok = ['http', 'https'].map((p) => app.setAsDefaultProtocolClient(p))
+  if (!ok.every(Boolean)) dialog.showErrorBox('Default browser', 'The system did not let camber register for http and https links.')
+}
+
 // CAMBER_ARC_FILE points the importer at a copy instead of Arc's live file
 const arcPath = () => process.env.CAMBER_ARC_FILE ||
   (DEMO ? path.join(__dirname, 'demo', 'arc-demo.json')
@@ -371,6 +393,8 @@ function menu() {
         item('Import from Arc…', undefined, () => importArc()),
         item('Import Arc File…', undefined, pickArcFile),
         item('Chrome Web Store', undefined, () => newTab('https://chromewebstore.google.com/')),
+        { type: 'separator' },
+        item('Make camber the Default Browser', undefined, makeDefault),
       ],
     },
     { role: 'editMenu' },
@@ -410,6 +434,7 @@ app.userAgentFallback = cleanUA(app.userAgentFallback)
 app.on('session-created', (s) => s.setUserAgent(cleanUA(s.getUserAgent())))
 
 app.whenReady().then(() => {
+  if (!solo) return
   load()
   // the tab that was on screen at quit counts as just used, then the overnight backlog goes
   const shown = find(space().activeId)
@@ -435,6 +460,8 @@ app.whenReady().then(() => {
     if ([...tabsOf(space())].length) showSpace(state.active)
     else if (!DEMO) newTab('https://duckduckgo.com')
     else render() // demo starts empty, ready for Import from Arc
+    ready = true
+    ;[...linksIn(process.argv), ...waiting].forEach(openLink)
   })
   win.on('resize', layout)
   win.on('closed', () => { clearTimeout(saveTimer); if (!DEMO) save(); app.quit() })
