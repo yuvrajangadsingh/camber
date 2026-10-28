@@ -1,6 +1,6 @@
 const test = require('node:test')
 const assert = require('node:assert')
-const { touch, forget, afterClose, move, prune, web, permKeys, permission, pairOk, route: tabsRoute } = require('../tabs')
+const { touch, forget, afterClose, move, prune, web, loadable, permKeys, permission, pairOk, route: tabsRoute } = require('../tabs')
 
 test('closing a tab goes back to the one used before it', () => {
   let mru = []
@@ -125,6 +125,12 @@ test('only http, https and about:blank pass as outside input', () => {
   for (const u of ['https://github.com/', 'http://localhost:3000/x', 'HTTPS://Example.com', 'about:blank']) assert.strictEqual(web(u), true, u)
   for (const u of ['javascript:alert(1)', 'JavaScript:alert(1)', 'file:///etc/passwd', 'data:text/html,hi', 'chrome://settings', 'about:config',
     'chrome-extension://abc/x.html', 'ftp://x.com/', '/Applications/camber.app', '--flag', 'github.com', '', undefined, null]) assert.strictEqual(web(u), false, String(u))
+})
+
+test('tabs load web and extension pages, never local files or scripts', () => {
+  for (const u of ['https://github.com/', 'about:blank', 'chrome-extension://abcdefgh/popup.html']) assert.strictEqual(loadable(u), true, u)
+  for (const u of ['file:///etc/hosts', 'FILE:///etc/hosts', 'data:text/html,hi', 'javascript:alert(1)', 'chrome://settings', 'chrome-extension:x', 'view-source:https://a.com', undefined])
+    assert.strictEqual(loadable(u), false, String(u))
 })
 
 test('a split is two different tabs of its own space', () => {

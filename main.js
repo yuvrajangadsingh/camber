@@ -76,6 +76,10 @@ const linksIn = (argv) => argv.filter(tabs.web)
 const allowed = (url) => tabs.web(url) || void console.warn('camber: dropped a non-web URL:', String(url).slice(0, 80))
 // window.open from a page never makes a window; an allowed URL goes to `open` instead
 const popups = (open) => ({ url }) => { if (allowed(url)) open(url); return { action: 'deny' } }
+// the one gate for every page camber loads (typed, restored, imported, extension-made) and for a
+// page's own top-level navigations: no file:, data:, javascript: or chrome: page ever loads
+const loadable = (url) => tabs.loadable(url) || void console.warn('camber: did not load', String(url).slice(0, 80))
+const guard = (wc) => wc.on('will-navigate', (e, url) => { if (!loadable(url)) e.preventDefault() })
 function openLink(url) {
   if (!allowed(url)) return
   if (!ready) return waiting.push(url)
@@ -279,9 +283,11 @@ function viewFor(t, adopt) {
   // clicking the other pane of a split makes it the active tab
   wc.on('before-mouse-event', (_, m) => { if (m.type === 'mouseDown' && pair()?.includes(t.id) && space().activeId !== t.id) select(t.id) })
   wc.setWindowOpenHandler(popups(newTab))
+  guard(wc)
   extensionsFor(profile).addTab(wc, win)
   win.contentView.addChildView(v)
-  if (!adopt) wc.loadURL(t.url)
+  // a tab whose url can't load stays in the sidebar with its url, on a blank page
+  if (!adopt && loadable(t.url)) wc.loadURL(t.url)
   views.set(t.id, v)
   return v
 }
@@ -412,6 +418,7 @@ function little(url) {
   wc.on('page-title-updated', (_, title) => w.setTitle(title))
   // links that want a new window stay in this one
   wc.setWindowOpenHandler(popups((u) => wc.loadURL(u)))
+  guard(wc)
   bar.webContents.loadFile('little.html')
   bar.webContents.once('did-finish-load', () => {
     sync()
@@ -512,6 +519,7 @@ async function openPeek(id) {
   wc.on('did-navigate-in-page', (_, url, main) => { if (main) { p.url = url; render() } })
   wc.on('before-input-event', (e, i) => { if (peek === p && i.type === 'keyDown' && i.key === 'Escape') { e.preventDefault(); closePeek() } })
   wc.setWindowOpenHandler(popups((u) => wc.loadURL(u)))
+  guard(wc)
   win.contentView.addChildView(ui)
   win.contentView.addChildView(p.view)
   ui.webContents.send('palette', { mode: 'peek', backdrop: snap })
@@ -570,6 +578,7 @@ const commands = {
   go(text, mode) {
     closePalette()
     const url = toURL(String(text))
+    if (!loadable(url)) return
     const wc = current()
     if (mode === 'edit' && wc) wc.loadURL(url)
     else newTab(url)

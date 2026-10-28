@@ -89,6 +89,9 @@ function web(url) {
   try { return ['http:', 'https:'].includes(new URL(url).protocol) } catch { return false }
 }
 
+// what a tab, peek or little window may load at all: web pages plus extension pages
+const loadable = (url) => web(url) || /^chrome-extension:\/\/[a-z]+\//.test(url)
+
 // site permissions: these are asked once per origin and remembered in `perms`
 // ({ [origin]: { [key]: true | false } }); fullscreen and copy-to-clipboard just work; the rest is denied
 const ASK = ['media', 'geolocation', 'notifications', 'clipboard-read', 'midi', 'midiSysex', 'hid', 'usb', 'serial', 'bluetooth', 'display-capture', 'idle-detection', 'pointerLock']
@@ -123,4 +126,4 @@ function route(routes, url, spaceIds) {
 // today and favorites); a restored one that points elsewhere is dropped
 const pairOk = (split, ids) => Array.isArray(split) && split.length === 2 && split[0] !== split[1] && split.every((id) => ids.includes(id))
 
-module.exports = { nodes, detach, move, touch, forget, afterClose, prune, web, permKeys, permission, covers, route, pairOk }
+module.exports = { nodes, detach, move, touch, forget, afterClose, prune, web, loadable, permKeys, permission, covers, route, pairOk }
