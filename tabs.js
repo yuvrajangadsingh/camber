@@ -47,6 +47,13 @@ function move(s, id, target, where, now) {
 // most recently used first; capped so state.json doesn't grow with long-gone ids
 const touch = (mru, id) => [id, ...(mru || []).filter((x) => x !== id)].slice(0, 50)
 
+// tabs `ids` left the space for good (closed or archived): they leave its history, and if one
+// was selected, the last used tab still there takes its place (null when none)
+function forget(s, ids) {
+  s.mru = (s.mru || []).filter((id) => !ids.includes(id))
+  if (ids.includes(s.activeId)) s.activeId = s.mru[0] ?? null
+}
+
 // the tab to show after `closed`: the last one used that is still there, then the first
 // today tab, then any loaded tab, then any tab at all
 function afterClose(closed, mru, ids, today, loaded) {
@@ -62,12 +69,15 @@ function prune(state, now, hours) {
   const gone = []
   const shown = state.spaces[state.active]?.activeId
   for (const s of state.spaces) {
+    const out = []
     s.today = s.today.filter((t) => {
       t.lastActive ??= now
       const keep = t.id === shown || now - t.lastActive < hours * 3600000
-      if (!keep) gone.push(t.id)
+      if (!keep) out.push(t.id)
       return keep
     })
+    forget(s, out)
+    gone.push(...out)
   }
   return gone
 }
@@ -83,4 +93,4 @@ function route(routes, url) {
   return (routes || []).filter((r) => covers(r, host)).sort((a, b) => b.host.length - a.host.length)[0]?.spaceId
 }
 
-module.exports = { nodes, detach, move, touch, afterClose, prune, covers, route }
+module.exports = { nodes, detach, move, touch, forget, afterClose, prune, covers, route }

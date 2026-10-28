@@ -117,7 +117,9 @@ function importArc(file = arcPath()) {
     only.today.forEach((t) => dropView(t.id))
     state.spaces = []
   }
-  arc.merge(state, { spaces, favorites }).forEach(dropView)
+  const gone = arc.merge(state, { spaces, favorites })
+  gone.forEach(dropView)
+  for (const s of state.spaces) tabs.forget(s, gone) // replaced favorites
   showSpace(state.spaces.findIndex((s) => s.arcId === spaces[0]?.arcId))
 }
 
@@ -291,9 +293,10 @@ function dropView(id) {
 function closeTab(id = space().activeId) {
   const s = find(id)?.s
   if (!s) return
+  const shown = id === s.activeId
   dropView(id)
-  if (s.today.some((t) => t.id === id)) detach(s, id)
-  if (id !== s.activeId) return render()
+  if (s.today.some((t) => t.id === id)) { detach(s, id); tabs.forget(s, [id]) }
+  if (!shown) return render()
   s.activeId = null
   const ids = [...tabsOf(s)].map((t) => t.id)
   const next = tabs.afterClose(id, s.mru, ids, s.today.map((t) => t.id), ids.filter((i) => views.has(i)))

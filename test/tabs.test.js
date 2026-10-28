@@ -1,6 +1,6 @@
 const test = require('node:test')
 const assert = require('node:assert')
-const { touch, afterClose, move, prune, route } = require('../tabs')
+const { touch, forget, afterClose, move, prune, route } = require('../tabs')
 
 test('closing a tab goes back to the one used before it', () => {
   let mru = []
@@ -18,6 +18,21 @@ test('closing a tab goes back to the one used before it', () => {
   assert.strictEqual(afterClose('d', ['d'], ['d'], [], ['d']), undefined)
 
   assert.strictEqual(touch(Array.from({ length: 60 }, (_, i) => 'x' + i), 'new').length, 50)
+
+  // 50 closed tabs don't push a live one out of the history
+  let s = { activeId: 'a', mru: ['a', 'p'] }
+  for (let i = 0; i < 50; i++) {
+    s.mru = touch(s.mru, 't' + i)
+    forget(s, ['t' + i])
+    s.mru = touch(s.mru, 'a')
+  }
+  assert.deepStrictEqual(s.mru, ['a', 'p'])
+  assert.strictEqual(afterClose('a', s.mru, ['p', 'a', 'x'], ['x'], ['p', 'a']), 'p')
+  // a selected tab that goes is replaced by the one before it, or nothing
+  forget(s, ['a'])
+  assert.deepStrictEqual(s, { activeId: 'p', mru: ['p'] })
+  forget(s, ['p'])
+  assert.deepStrictEqual(s, { activeId: null, mru: [] })
 })
 
 test('drag and drop moves tabs within and across pinned, folders and today', () => {
@@ -77,6 +92,9 @@ test('archives today tabs that sat unused past the limit', () => {
   assert.deepStrictEqual(s.spaces[0].today.map((t) => t.id), ['shown', 'fresh', 'new'])
   assert.strictEqual(s.spaces[0].today[2].lastActive, now)
   assert.strictEqual(s.spaces[0].pinned.length, 1)
+  // the background space's selected tab went: no dangling selection or history left behind
+  assert.strictEqual(s.spaces[1].activeId, null)
+  assert.deepStrictEqual(s.spaces[1].mru, [])
 
   s = state()
   assert.deepStrictEqual(prune(s, now, 24), ['old2'])
