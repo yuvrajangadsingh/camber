@@ -130,6 +130,7 @@ buttons show up in the sidebar.
 - No auto-update, no code signing, no Windows arm64 build.
 - No Widevine: Netflix, Prime Video, Disney+ and Spotify web do not play (stock
   Electron ships no DRM module).
+- No USB, HID, serial, Bluetooth or screen sharing: sites asking for them are refused.
 - No sync, split view, Peek, Boosts or Live Folders.
 
 ## Remote debugging

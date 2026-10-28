@@ -163,6 +163,7 @@ test('a site gets a permission only after its own approval', () => {
   assert.deepStrictEqual(permKeys('media', ['audio', 'video']), ['microphone', 'camera'])
   // not on the ask list, or not a web page: denied without asking
   assert.strictEqual(ask('https://maps.example', 'openExternal'), false)
+  for (const name of ['hid', 'usb', 'serial', 'bluetooth', 'display-capture']) assert.strictEqual(ask('https://other.example', name), false, name)
   assert.strictEqual(ask('file://', 'media', ['audio']), false)
   assert.strictEqual(ask('', 'notifications'), false)
   assert.strictEqual(ask('https://other.example', 'fullscreen'), true)

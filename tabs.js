@@ -94,8 +94,9 @@ function web(url) {
 const loadable = (url) => web(url) || /^chrome-extension:\/\/[a-z]+\//.test(url)
 
 // site permissions: these are asked once per origin and remembered in `perms`
-// ({ [origin]: { [key]: true | false } }); fullscreen and copy-to-clipboard just work; the rest is denied
-const ASK = ['media', 'geolocation', 'notifications', 'clipboard-read', 'midi', 'midiSysex', 'hid', 'usb', 'serial', 'bluetooth', 'display-capture', 'idle-detection', 'pointerLock']
+// ({ [origin]: { [key]: true | false } }); fullscreen and copy-to-clipboard just work; the rest is denied.
+// HID, USB, serial, Bluetooth and screen sharing need device pickers camber doesn't have, so they are denied too.
+const ASK = ['media', 'geolocation', 'notifications', 'clipboard-read', 'midi', 'midiSysex', 'idle-detection', 'pointerLock']
 const FREE = ['fullscreen', 'clipboard-sanitized-write']
 // the keys a request is remembered under: a camera + mic request is two, so each is answered on its own
 const permKeys = (name, media) => {
