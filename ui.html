@@ -88,6 +88,9 @@
   #spaces button.active { opacity: 1; transform: scale(1.35); box-shadow: 0 0 0 2px var(--mix), 0 0 0 3.5px var(--text); }
   #spaces .add { width: 18px; height: 18px; background: transparent; color: var(--muted); font-size: 15px; line-height: 18px; opacity: 1; }
 
+  /* split view: the active pane's 2px accent ring, drawn in the gap around the page view */
+  #pane { display: none; position: fixed; border: 2px solid var(--c); border-radius: 12px; }
+
   #scrim, #snap, #palette { display: none; }
   body.palette #scrim, body.palette #palette { display: block; }
   body.palette #snap[src] { display: block; }
@@ -119,6 +122,7 @@
   <browser-action-list id="actions" alignment="top right"></browser-action-list>
   <div id="spaces"></div>
 </div>
+<div id="pane"></div>
 <img id="snap" alt="">
 <div id="scrim"></div>
 <div id="palette">
@@ -222,7 +226,9 @@ for (const [id, cmd] of [['nav-sidebar', 'toggleSidebar'], ['nav-back', 'back'],
 const ICONS = { reload: '<path d="M15.5 10a5.5 5.5 0 1 1-1.6-3.9"/><path d="M15.5 3.5v3.2h-3.2"/>', stop: '<path d="M5.5 5.5l9 9M14.5 5.5l-9 9"/>' }
 
 let actionsKey
-camber.onState(({ state, sidebarOpen, offerArc, tabId, extensionsVersion, nav, platform, update }) => {
+camber.onState(({ state, sidebarOpen, offerArc, tabId, extensionsVersion, nav, platform, update, pane }) => {
+  $('pane').style.display = pane ? 'block' : ''
+  if (pane) Object.assign($('pane').style, { left: pane.x - 2 + 'px', top: pane.y - 2 + 'px', width: pane.width + 4 + 'px', height: pane.height + 4 + 'px' })
   $('update').hidden = !update
   if (update) $('update').querySelector('a').textContent = `camber ${update.version} is out`
   document.body.classList.toggle('mac', platform === 'darwin')
@@ -340,10 +346,13 @@ function fuzzy(q, text) {
   return pos - start + start / 100
 }
 
+// "Split with…" lists the space's other tabs before anything is typed
 function matches() {
   const q = $('query').value.trim().toLowerCase()
-  if (!q || !current) return []
-  return tabsOf(current.spaces[current.active])
+  if (!current || (!q && mode !== 'split')) return []
+  const s = current.spaces[current.active]
+  return tabsOf(s)
+    .filter((t) => mode !== 'split' || t.id !== s.activeId)
     .map((t) => ({ t, score: fuzzy(q, [t.name, t.title, t.url].join(' ')) }))
     .filter((m) => m.score !== null)
     .sort((a, b) => a.score - b.score)
@@ -356,9 +365,19 @@ const looksLikeURL = (q) => !/\s/.test(q) && (q.includes('.') || q.includes(':')
 // rows in display order: typed URLs go first; otherwise open tabs first (like Arc) and search last
 function items() {
   const q = $('query').value.trim()
+  if (mode === 'split') return matches()
   if (!q) return []
   const tabs = matches()
-  return looksLikeURL(q) ? [null, ...tabs] : [...tabs, null]
+  const split = q.length > 1 && 'split with'.startsWith(q.toLowerCase()) ? [{ action: 'split' }] : []
+  return looksLikeURL(q) ? [null, ...tabs] : [...split, ...tabs, null]
+}
+
+function splitMode() {
+  mode = 'split'
+  picked = 0
+  $('query').value = ''
+  $('query').placeholder = 'Split with…'
+  showResults()
 }
 
 function showResults() {
@@ -369,14 +388,17 @@ function showResults() {
   box.replaceChildren()
   list.forEach((t, i) => {
     let r
-    if (t) {
+    if (t?.action) {
+      r = el('div', 'row')
+      r.append(el('div', 'icon plus', '◫'), el('span', '', 'Split with…'))
+    } else if (t) {
       r = tabRow(t)
-      r.append(el('span', 'hint', 'Switch to tab'))
+      r.append(el('span', 'hint', mode === 'split' ? 'Split' : 'Switch to tab'))
     } else {
       r = el('div', 'row')
       r.append(el('div', 'icon plus', looksLikeURL(q) ? '↗' : '⌕'), el('span', '', looksLikeURL(q) ? q : `Search DuckDuckGo for “${q}”`))
-      r.onclick = () => { picked = i; submit() }
     }
+    r.onclick = () => { picked = i; submit() }
     if (i === picked) r.classList.add('active')
     box.append(r)
   })
@@ -393,6 +415,7 @@ camber.onPalette(({ mode: m, url, backdrop }) => {
   document.body.classList.add('palette')
   const q = $('query')
   q.value = url
+  q.placeholder = mode === 'split' ? 'Split with…' : 'Search or enter URL'
   q.focus()
   q.select()
   showResults()
@@ -401,8 +424,11 @@ camber.onPalette(({ mode: m, url, backdrop }) => {
 function submit() {
   const t = items()[picked]
   const q = $('query').value
+  if (t?.action) return splitMode()
   document.body.classList.remove('palette')
-  if (t) camber.send('select', t.id)
+  if (t && mode === 'split') camber.send('split', t.id)
+  else if (mode === 'split') camber.send('closePalette')
+  else if (t) camber.send('select', t.id)
   else if (q.trim()) camber.send('go', q, mode)
   else camber.send('closePalette')
 }

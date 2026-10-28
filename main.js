@@ -135,7 +135,8 @@ function render() {
   const wc = current()
   const nav = { back: !!wc?.navigationHistory.canGoBack(), forward: !!wc?.navigationHistory.canGoForward(), loading: !!wc?.isLoading() }
   const notice = update && state.dismissedUpdate !== update.version ? update : null
-  ui.webContents.send('state', { state, sidebarOpen, offerArc, tabId: wc?.id, extensionsVersion, nav, platform: process.platform, update: notice })
+  const pane = pair() && paneBounds(space().activeId)
+  ui.webContents.send('state', { state, sidebarOpen, offerArc, tabId: wc?.id, extensionsVersion, nav, platform: process.platform, update: notice, pane })
   clearTimeout(saveTimer)
   saveTimer = setTimeout(save, 500)
 }
@@ -152,6 +153,17 @@ const contentBounds = () => {
   return { x, y, width: width - x - GAP, height: height - y - GAP }
 }
 
+// split view: while the active tab is one of the space's pair (s.split = [left, right]), both
+// share the content area half and half
+const pair = () => { const s = space(); return s.split?.includes(s.activeId) && s.split.every(find) ? s.split : null }
+function paneBounds(id) {
+  const b = contentBounds()
+  const p = pair()
+  if (!p?.includes(id)) return b
+  const w = Math.floor((b.width - GAP) / 2)
+  return p[0] === id ? { ...b, width: w } : { ...b, x: b.x + w + GAP, width: b.width - w - GAP }
+}
+
 // the caption buttons sit on the space's tint, roughly where the sidebar gradient starts
 function tintCaption() {
   if (MAC) return
@@ -161,15 +173,20 @@ function tintCaption() {
 }
 
 // the ui view fills the window behind the tabs (sidebar + tinted frame) and
-// moves on top only while the command bar is open
+// moves on top only while the command bar is open. Leaving a space ends its split.
+let shownSpace
 function layout() {
+  if (shownSpace && shownSpace !== space()) shownSpace.split = null
+  shownSpace = space()
   win.setBackgroundColor(space().color)
   tintCaption()
   const { width, height } = win.getContentBounds()
   ui.setBounds({ x: 0, y: 0, width, height })
+  const p = pair()
+  p?.forEach((id) => viewFor(find(id).t))
   for (const [id, v] of views) {
-    v.setVisible(id === space().activeId)
-    v.setBounds(contentBounds())
+    v.setVisible(p ? p.includes(id) : id === space().activeId)
+    v.setBounds(paneBounds(id))
   }
 }
 
@@ -213,6 +230,8 @@ function viewFor(t) {
   wc.on('did-navigate-in-page', (_, url, main) => { if (main) { t.url = url; render() } })
   wc.on('did-start-loading', render)
   wc.on('did-stop-loading', render)
+  // clicking the other pane of a split makes it the active tab
+  wc.on('before-mouse-event', (_, m) => { if (m.type === 'mouseDown' && pair()?.includes(t.id) && space().activeId !== t.id) select(t.id) })
   wc.setWindowOpenHandler(({ url }) => { newTab(url); return { action: 'deny' } })
   extensionsFor(profile).addTab(wc, win)
   win.contentView.addChildView(v)
@@ -242,6 +261,7 @@ function newTab(url) {
 }
 
 function dropView(id) {
+  for (const s of state.spaces) if (s.split?.includes(id)) s.split = null
   const v = views.get(id)
   if (!v) return
   win.contentView.removeChildView(v)
@@ -275,6 +295,15 @@ function togglePin() {
   else s.pinned.push(t)
   render()
 }
+
+function splitWith(id) {
+  const s = space()
+  if (!s.activeId || id === s.activeId || ![...tabsOf(s)].some((t) => t.id === id)) return
+  s.split = [s.activeId, id]
+  layout()
+  render()
+}
+const closeSplit = () => { space().split = null; layout(); render() }
 
 // Air Traffic Control: links from other apps to this site open in this space.
 // www. is dropped so a rule made on www.github.com also covers github.com.
@@ -397,7 +426,7 @@ async function openPalette(mode) {
   ui.webContents.send('palette', {
     mode,
     url: mode === 'edit' ? t?.url || '' : '',
-    backdrop: shot && !shot.isEmpty() ? { src: shot.resize({ width: 640 }).toDataURL(), ...contentBounds() } : null,
+    backdrop: shot && !shot.isEmpty() ? { src: shot.resize({ width: 640 }).toDataURL(), ...paneBounds(space().activeId) } : null,
   })
   ui.webContents.focus()
 }
@@ -424,7 +453,8 @@ const commands = {
   closeTab: (id) => closeTab(id),
   importArc: () => importArc(), // never a renderer-supplied path
   closePalette,
-  openPalette: (mode) => openPalette(mode === 'edit' ? 'edit' : 'new'),
+  openPalette: (mode) => openPalette(['edit', 'split'].includes(mode) ? mode : 'new'),
+  split(id) { closePalette(); splitWith(id) },
   go(text, mode) {
     closePalette()
     const url = toURL(String(text))
@@ -494,6 +524,8 @@ function menu() {
         item('Back', 'CmdOrCtrl+[', back),
         item('Forward', 'CmdOrCtrl+]', forward),
         item('Pin / Unpin', 'CmdOrCtrl+D', togglePin),
+        item('Split with…', undefined, () => space().activeId && openPalette('split')),
+        item('Close Split', 'CmdOrCtrl+Shift+\\', closeSplit),
         { type: 'separator' },
         item('Always Open Links to This Site in This Space', undefined, routeHere),
         item('Forget Routing Rule for This Site', undefined, forgetRoute),
@@ -552,7 +584,7 @@ app.whenReady().then(() => {
     ready = true
     ;[...linksIn(process.argv), ...waiting].forEach(openLink)
   })
-  win.on('resize', layout)
+  win.on('resize', () => { layout(); render() }) // render moves the split's focus ring
   win.on('closed', () => { clearTimeout(saveTimer); if (!DEMO) save(); app.quit() })
   menu()
   layout()
