@@ -80,14 +80,22 @@ const tabIds = (list) => list.flatMap((it) => (it.children ? tabIds(it.children)
 
 // Puts an import into camber's state. A space already imported from the same Arc space is
 // replaced in place (re-import never duplicates); favorites are replaced per profile.
+// Routing rules follow a replaced space to its new id (spaces from before ids came from Arc
+// had random ones); rules for a space that no longer exists are dropped.
 // Returns the ids of tabs that went away, so their views can be closed.
 function merge(state, { spaces, favorites }) {
   const gone = []
+  const moved = {}
   for (const s of spaces) {
     const i = state.spaces.findIndex((x) => x.arcId && x.arcId === s.arcId)
     if (i < 0) { state.spaces.push(s); continue }
     gone.push(...tabIds([...state.spaces[i].pinned, ...state.spaces[i].today]))
+    moved[state.spaces[i].id] = s.id
     state.spaces[i] = s
+  }
+  if (state.routes) {
+    state.routes = state.routes.map((r) => ({ ...r, spaceId: moved[r.spaceId] ?? r.spaceId }))
+      .filter((r) => state.spaces.some((s) => s.id === r.spaceId))
   }
   for (const k of Object.keys(favorites)) gone.push(...tabIds(state.favorites?.[k] || []))
   state.favorites = { ...state.favorites, ...favorites }

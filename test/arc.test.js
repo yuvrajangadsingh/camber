@@ -53,6 +53,20 @@ test('re-importing replaces spaces from the same Arc space instead of duplicatin
   assert.strictEqual(gone.length, 13)
 })
 
+test('re-importing over an older import moves its routing rules to the new space ids', () => {
+  let n = 0
+  const uid = () => 'id' + n++
+  const fixture = require('./arc-fixture.json')
+  const state = { spaces: [{ id: 'mine', pinned: [], today: [] }], favorites: {} }
+  merge(state, convert(fixture, uid))
+  // what an older camber left: random ids on the imported spaces
+  state.spaces[1].id = 'rnd1'
+  state.routes = [{ host: 'a.com', spaceId: 'rnd1' }, { host: 'b.com', spaceId: 'mine' }, { host: 'c.com', spaceId: 'deleted' }]
+  merge(state, convert(fixture, uid))
+  assert.deepStrictEqual(state.routes, [{ host: 'a.com', spaceId: 'arc-' + state.spaces[1].arcId }, { host: 'b.com', spaceId: 'mine' }])
+  assert.strictEqual(state.spaces[1].id, 'arc-' + state.spaces[1].arcId)
+})
+
 test('finds the Arc sidebar file per platform', () => {
   const none = () => { throw new Error('ENOENT') }
   assert.strictEqual(arcFile('darwin', { appData: '/home/a/Library/Application Support' }, none), '/home/a/Library/Application Support/Arc/StorableSidebar.json')
