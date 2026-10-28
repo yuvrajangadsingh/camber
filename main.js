@@ -172,9 +172,22 @@ function tintCaption() {
   win.setTitleBarOverlay({ color: mix(space().color, dark ? 20 : 255, dark ? 0.42 : 0.58), symbolColor: dark ? '#f2f2f4' : '#1d1d1f', height: CAPTION })
 }
 
+// auto picture-in-picture: a tab that goes off screen with a video playing pops it out, and
+// coming back puts it back. Top-level <video> only; one inside an iframe (most embeds) stays.
+const autoPip = () => state.autoPip ?? true
+const POP = `(async () => {
+  try {
+    const v = [...document.querySelectorAll('video')].find((v) => !v.paused && !v.ended && v.readyState > 2)
+    if (v && document.pictureInPictureEnabled && !v.disablePictureInPicture) await v.requestPictureInPicture()
+  } catch (e) { console.warn('camber pip:', e.message) }
+})()`
+const UNPOP = `document.pictureInPictureElement && document.exitPictureInPicture().catch((e) => console.warn('camber pip:', e.message))`
+const pip = (wc, code) => { if ((code === UNPOP || autoPip()) && !wc.isDestroyed()) wc.executeJavaScript(code, true).catch(() => {}) }
+
 // the ui view fills the window behind the tabs (sidebar + tinted frame) and
 // moves on top only while the command bar is open. Leaving a space ends its split.
 let shownSpace
+let onScreen = new Set()
 function layout() {
   if (shownSpace && shownSpace !== space()) shownSpace.split = null
   shownSpace = space()
@@ -184,10 +197,13 @@ function layout() {
   ui.setBounds({ x: 0, y: 0, width, height })
   const p = pair()
   p?.forEach((id) => viewFor(find(id).t))
+  const shown = new Set([...views.keys()].filter((id) => p ? p.includes(id) : id === space().activeId))
   for (const [id, v] of views) {
-    v.setVisible(p ? p.includes(id) : id === space().activeId)
+    if (onScreen.has(id) !== shown.has(id)) pip(v.webContents, shown.has(id) ? UNPOP : POP)
+    v.setVisible(shown.has(id))
     v.setBounds(paneBounds(id))
   }
+  onScreen = shown
 }
 
 // chrome.* extension APIs and the Web Store, set up once per profile session
@@ -530,6 +546,7 @@ function menu() {
         item('Always Open Links to This Site in This Space', undefined, routeHere),
         item('Forget Routing Rule for This Site', undefined, forgetRoute),
         { type: 'separator' },
+        { label: 'Pop out video when leaving a tab', type: 'checkbox', checked: autoPip(), click: (m) => { state.autoPip = m.checked; render() } },
         {
           label: 'Archive After',
           submenu: [[12, '12h'], [24, '24h'], [0, 'Off']].map(([h, label]) =>
