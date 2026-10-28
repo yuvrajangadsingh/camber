@@ -497,7 +497,7 @@ const fitPeek = () => {
 
 async function openPeek(id) {
   const t = find(id)?.t
-  if (!t || peek || paletteOpen) return
+  if (!t || peek || paletteOpen || !allowed(t.url)) return
   const p = peek = { view: new WebContentsView({ webPreferences: { partition: 'persist:' + space().profile } }), url: t.url }
   const snap = await backdrop()
   if (peek !== p) return
