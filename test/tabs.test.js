@@ -1,6 +1,6 @@
 const test = require('node:test')
 const assert = require('node:assert')
-const { touch, forget, afterClose, move, prune, web, loadable, permKeys, permission, checked, asker, pairOk, route: tabsRoute } = require('../tabs')
+const { touch, forget, afterClose, move, prune, web, loadable, permKeys, permission, checked, permOrigin, asker, pairOk, route: tabsRoute } = require('../tabs')
 
 test('closing a tab goes back to the one used before it', () => {
   let mru = []
@@ -208,4 +208,15 @@ test('one permission dialog at a time, and the same question is asked once', asy
   ask('a mic', dialog('a mic later', true))
   await tick()
   assert.deepStrictEqual(shown, ['a mic', 'b mic', 'c mic', 'a mic later'])
+})
+
+test('a permission belongs to the origin of the frame asking', () => {
+  assert.strictEqual(permOrigin(undefined, 'https://meet.example:8443/room?x=1', 'https://top.example/'), 'https://meet.example:8443')
+  assert.strictEqual(permOrigin('https://meet.example', 'blob:https://meet.example/1b2c', 'https://top.example/'), 'https://meet.example')
+  assert.strictEqual(permOrigin(undefined, 'blob:https://meet.example/1b2c', 'https://top.example/'), 'https://meet.example')
+  assert.strictEqual(permOrigin(undefined, 'about:blank', 'https://top.example/a'), 'https://top.example')
+  assert.strictEqual(permOrigin('https://meet.example/', 'about:blank', 'https://top.example/'), 'https://meet.example')
+  assert.strictEqual(permOrigin(undefined, 'chrome-extension://abc/popup.html'), 'chrome-extension://abc')
+  // no origin to give: denied downstream
+  for (const u of ['file:///etc/hosts', 'data:text/html,hi', 'blob:null/1b2c', undefined]) assert.strictEqual(permOrigin(undefined, u, 'https://top.example/'), '', String(u))
 })

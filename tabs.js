@@ -114,6 +114,13 @@ function permission(perms, origin, name, keys) {
 // undecided; only these two, since showing a notification or opening a device still goes through the dialog
 const checked = (perms, origin, name, keys) => (permission(perms, origin, name, keys) ?? ['media', 'notifications'].includes(name)) === true
 
+// the origin a permission is asked and kept for: the frame's security origin when Electron gives one,
+// else its url's; a blob: url carries its creator's origin and an about: frame inherits the page's
+function permOrigin(frameOrigin, url, pageUrl) {
+  const of = (u) => { try { const x = new URL(u); return x.protocol === 'blob:' ? of(x.pathname) : x.host ? x.protocol + '//' + x.host : '' } catch { return '' } }
+  return of(frameOrigin) || (/^about:/.test(url) ? of(pageUrl) : of(url))
+}
+
 // permission dialogs: one on screen at a time, a request for an answer already being asked shares it,
 // and past `max` waiting the rest are refused without a dialog
 function asker(max = 8) {
@@ -145,4 +152,4 @@ function route(routes, url, spaceIds) {
 // today and favorites); a restored one that points elsewhere is dropped
 const pairOk = (split, ids) => Array.isArray(split) && split.length === 2 && split[0] !== split[1] && split.every((id) => ids.includes(id))
 
-module.exports = { nodes, detach, move, touch, forget, afterClose, prune, web, loadable, permKeys, permission, checked, asker, covers, route, pairOk }
+module.exports = { nodes, detach, move, touch, forget, afterClose, prune, web, loadable, permKeys, permission, checked, permOrigin, asker, covers, route, pairOk }

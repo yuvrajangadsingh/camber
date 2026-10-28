@@ -683,11 +683,10 @@ app.on('session-created', (s) => {
 // without these handlers Electron grants every site whatever macOS has granted camber.
 // Each origin is asked once per permission (camera and microphone separately) and the answer kept.
 function guardPermissions(ses) {
-  const originOf = (url) => { try { const u = new URL(url); return u.protocol + '//' + u.host } catch { return '' } }
-  ses.setPermissionCheckHandler((_, name, origin, details) =>
-    tabs.checked(state.permissions, originOf(origin), name, tabs.permKeys(name, [details.mediaType])))
-  ses.setPermissionRequestHandler((_, name, callback, details) => {
-    const origin = originOf(details.requestingUrl), keys = tabs.permKeys(name, details.mediaTypes)
+  ses.setPermissionCheckHandler((wc, name, origin, details) =>
+    tabs.checked(state.permissions, tabs.permOrigin(details.securityOrigin || origin, details.requestingUrl, wc?.getURL()), name, tabs.permKeys(name, [details.mediaType])))
+  ses.setPermissionRequestHandler((wc, name, callback, details) => {
+    const origin = tabs.permOrigin(details.securityOrigin, details.requestingUrl, wc.getURL()), keys = tabs.permKeys(name, details.mediaTypes)
     const known = () => tabs.permission(state.permissions, origin, name, keys)
     if (known() !== undefined) return callback(known())
     askPermission(origin + ' ' + keys.join(' '), async () => {
