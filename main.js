@@ -136,7 +136,7 @@ function render() {
   const nav = { back: !!wc?.navigationHistory.canGoBack(), forward: !!wc?.navigationHistory.canGoForward(), loading: !!wc?.isLoading() }
   const notice = update && state.dismissedUpdate !== update.version ? update : null
   const pane = pair() && paneBounds(space().activeId)
-  ui.webContents.send('state', { state, sidebarOpen, offerArc, tabId: wc?.id, extensionsVersion, nav, platform: process.platform, update: notice, pane })
+  ui.webContents.send('state', { state, sidebarOpen, offerArc, tabId: wc?.id, extensionsVersion, nav, platform: process.platform, update: notice, pane, peek: peek && { url: peek.url, ...peekBounds() } })
   clearTimeout(saveTimer)
   saveTimer = setTimeout(save, 500)
 }
@@ -204,6 +204,7 @@ function layout() {
     v.setBounds(paneBounds(id))
   }
   onScreen = shown
+  if (peek) fitPeek()
 }
 
 // chrome.* extension APIs and the Web Store, set up once per profile session
@@ -433,18 +434,72 @@ function toURL(text) {
 }
 
 // css blur can't see into another view, so the backdrop is a snapshot of the page
-async function openPalette(mode) {
-  if (paletteOpen) return
-  paletteOpen = true
+async function backdrop() {
   const shot = await current()?.capturePage().catch(() => null)
+  return shot && !shot.isEmpty() ? { src: shot.resize({ width: 640 }).toDataURL(), ...paneBounds(space().activeId) } : null
+}
+
+async function openPalette(mode) {
+  if (paletteOpen || peek) return
+  paletteOpen = true
+  const snap = await backdrop()
   win.contentView.addChildView(ui) // re-adding moves it to the top
   const t = find(space().activeId)?.t
-  ui.webContents.send('palette', {
-    mode,
-    url: mode === 'edit' ? t?.url || '' : '',
-    backdrop: shot && !shot.isEmpty() ? { src: shot.resize({ width: 640 }).toDataURL(), ...paneBounds(space().activeId) } : null,
-  })
+  ui.webContents.send('palette', { mode, url: mode === 'edit' ? t?.url || '' : '', backdrop: snap })
   ui.webContents.focus()
+}
+
+// Peek: Shift+click a favorite (Cmd+Shift+click a pinned tab) opens it in a panel over the page,
+// on the space's profile. ui.html draws the panel and its strip under the page view; Esc or a
+// click outside closes it, Open as tab (Cmd+O) moves it to today.
+let peek = null // { view, url }
+const INSET = 48
+const STRIP = 36
+const peekBounds = () => {
+  const b = contentBounds()
+  return { x: b.x + INSET, y: b.y + INSET, width: b.width - 2 * INSET, height: b.height - 2 * INSET }
+}
+const fitPeek = () => {
+  const b = peekBounds()
+  peek.view.setBounds({ x: b.x + 1, y: b.y + STRIP, width: b.width - 2, height: b.height - STRIP - 1 })
+}
+
+async function openPeek(id) {
+  const t = find(id)?.t
+  if (!t || peek || paletteOpen) return
+  const p = peek = { view: new WebContentsView({ webPreferences: { partition: 'persist:' + space().profile } }), url: t.url }
+  const snap = await backdrop()
+  if (peek !== p) return
+  p.view.setBorderRadius(10)
+  const wc = p.view.webContents
+  wc.on('did-navigate', (_, url) => { p.url = url; render() })
+  wc.on('did-navigate-in-page', (_, url, main) => { if (main) { p.url = url; render() } })
+  wc.on('before-input-event', (e, i) => { if (i.type === 'keyDown' && i.key === 'Escape') { e.preventDefault(); closePeek() } })
+  wc.setWindowOpenHandler(({ url }) => { wc.loadURL(url); return { action: 'deny' } })
+  win.contentView.addChildView(ui)
+  win.contentView.addChildView(p.view)
+  ui.webContents.send('palette', { mode: 'peek', backdrop: snap })
+  fitPeek()
+  wc.loadURL(t.url)
+  render()
+  wc.focus()
+}
+
+function closePeek() {
+  if (!peek) return
+  win.contentView.removeChildView(peek.view)
+  peek.view.webContents.close()
+  peek = null
+  win.contentView.removeChildView(ui)
+  win.contentView.addChildView(ui, 0)
+  render()
+  current()?.focus()
+}
+
+function peekToTab() {
+  const url = peek?.url
+  closePeek()
+  if (url) newTab(url)
 }
 
 function closePalette() {
@@ -471,6 +526,9 @@ const commands = {
   closePalette,
   openPalette: (mode) => openPalette(['edit', 'split'].includes(mode) ? mode : 'new'),
   split(id) { closePalette(); splitWith(id) },
+  peek: openPeek,
+  closePeek,
+  peekToTab,
   go(text, mode) {
     closePalette()
     const url = toURL(String(text))
@@ -533,9 +591,9 @@ function menu() {
           littles.get(w).bar.webContents.focus()
           littles.get(w).bar.webContents.send('palette')
         }),
-        item('Close Tab', 'CmdOrCtrl+W', () => { const w = focusedLittle(); if (w) w.close(); else closeTab() }),
+        item('Close Tab', 'CmdOrCtrl+W', () => { const w = focusedLittle(); if (w) w.close(); else if (peek) closePeek(); else closeTab() }),
         item('New Little Window', 'CmdOrCtrl+Shift+N', () => little()),
-        item('Open in camber', 'CmdOrCtrl+O', () => { const w = focusedLittle(); if (w) intoCamber(w) }),
+        item('Open in camber', 'CmdOrCtrl+O', () => { const w = focusedLittle(); if (w) intoCamber(w); else peekToTab() }),
         item('Reload', 'CmdOrCtrl+R', reload),
         item('Back', 'CmdOrCtrl+[', back),
         item('Forward', 'CmdOrCtrl+]', forward),

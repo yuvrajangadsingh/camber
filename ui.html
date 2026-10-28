@@ -93,9 +93,16 @@
 
   #scrim, #snap, #palette { display: none; }
   body.palette #scrim, body.palette #palette { display: block; }
-  body.palette #snap[src] { display: block; }
+  body.palette #snap[src], body.peek #snap[src], body.peek #scrim { display: block; }
   #snap { position: fixed; border-radius: 10px; }
   #scrim { position: fixed; inset: 0; background: var(--scrim); backdrop-filter: blur(14px) saturate(1.2); }
+  /* the page view sits inside this panel, below the strip (main.js fitPeek) */
+  #peek { display: none; position: fixed; border-radius: 12px; background: var(--panel); box-shadow: 0 24px 70px rgba(0,0,0,.35), 0 0 0 1px var(--line); }
+  body.peek #peek { display: block; }
+  #peek-bar { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 6px 0 14px; color: var(--muted); }
+  #peek-bar span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #peek-bar button { height: 26px; padding: 0 10px; border: 0; border-radius: 7px; background: var(--pill); color: var(--text); font: inherit; font-weight: 600; }
+  #peek-bar button:hover { background: var(--hover); }
   #palette { position: fixed; top: 20%; left: 50%; transform: translateX(-50%); width: min(620px, calc(100vw - 80px)); background: var(--panel); border-radius: 14px; box-shadow: 0 24px 70px rgba(0,0,0,.35), 0 0 0 .5px rgba(0,0,0,.2); overflow: hidden; }
   #palette input { width: 100%; height: 56px; border: 0; outline: 0; padding: 0 20px; font: 18px system-ui, -apple-system, sans-serif; background: transparent; color: var(--text); }
   #results:not(:empty) { border-top: 1px solid var(--line); padding: 6px; }
@@ -125,6 +132,7 @@
 <div id="pane"></div>
 <img id="snap" alt="">
 <div id="scrim"></div>
+<div id="peek"><div id="peek-bar"><span></span><button title="Open as tab (⌘O)">Open as tab</button></div></div>
 <div id="palette">
   <input id="query" placeholder="Search or enter URL" spellcheck="false">
   <div id="results"></div>
@@ -174,6 +182,9 @@ function sidebarRow(t, activeId, today) {
   x.title = today ? 'Close tab' : 'Unload tab'
   x.onclick = (e) => { e.stopPropagation(); camber.send('closeTab', t.id) }
   r.append(x)
+  // Cmd+Shift+click a pinned tab to peek at it
+  const open = r.onclick
+  if (!today) r.onclick = (e) => (e.shiftKey && (e.metaKey || e.ctrlKey) ? camber.send('peek', t.id) : open(e))
   r.draggable = true
   r.dataset.drop = t.id
   r.ondragstart = (e) => { e.dataTransfer.setData(DRAG, t.id); e.dataTransfer.effectAllowed = 'move' }
@@ -226,7 +237,12 @@ for (const [id, cmd] of [['nav-sidebar', 'toggleSidebar'], ['nav-back', 'back'],
 const ICONS = { reload: '<path d="M15.5 10a5.5 5.5 0 1 1-1.6-3.9"/><path d="M15.5 3.5v3.2h-3.2"/>', stop: '<path d="M5.5 5.5l9 9M14.5 5.5l-9 9"/>' }
 
 let actionsKey
-camber.onState(({ state, sidebarOpen, offerArc, tabId, extensionsVersion, nav, platform, update, pane }) => {
+camber.onState(({ state, sidebarOpen, offerArc, tabId, extensionsVersion, nav, platform, update, pane, peek }) => {
+  document.body.classList.toggle('peek', !!peek)
+  if (peek) {
+    Object.assign($('peek').style, { left: peek.x + 'px', top: peek.y + 'px', width: peek.width + 'px', height: peek.height + 'px' })
+    $('peek-bar').firstChild.textContent = peek.url
+  }
   $('pane').style.display = pane ? 'block' : ''
   if (pane) Object.assign($('pane').style, { left: pane.x - 2 + 'px', top: pane.y - 2 + 'px', width: pane.width + 4 + 'px', height: pane.height + 4 + 'px' })
   $('update').hidden = !update
@@ -272,7 +288,7 @@ camber.onState(({ state, sidebarOpen, offerArc, tabId, extensionsVersion, nav, p
     const f = el('div', 'fav' + (t.id === s.activeId ? ' active' : ''))
     f.append(favicon(t))
     f.title = t.name || t.title || t.url
-    f.onclick = () => { document.body.classList.remove('palette'); camber.send('select', t.id) }
+    f.onclick = (e) => { document.body.classList.remove('palette'); camber.send(e.shiftKey ? 'peek' : 'select', t.id) }
     return f
   }))
   const sep = el('div', 'sep')
@@ -405,13 +421,14 @@ function showResults() {
 }
 
 camber.onPalette(({ mode: m, url, backdrop }) => {
-  mode = m
-  picked = 0
   const snap = $('snap')
   if (backdrop) {
     snap.src = backdrop.src
     Object.assign(snap.style, { left: backdrop.x + 'px', top: backdrop.y + 'px', width: backdrop.width + 'px', height: backdrop.height + 'px' })
   } else snap.removeAttribute('src')
+  if (m === 'peek') return
+  mode = m
+  picked = 0
   document.body.classList.add('palette')
   const q = $('query')
   q.value = url
@@ -434,7 +451,9 @@ function submit() {
 }
 
 const close = () => { document.body.classList.remove('palette'); camber.send('closePalette') }
-$('scrim').onclick = close
+$('scrim').onclick = () => (document.body.classList.contains('peek') ? camber.send('closePeek') : close())
+$('peek-bar').querySelector('button').onclick = () => camber.send('peekToTab')
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && document.body.classList.contains('peek')) camber.send('closePeek') })
 $('query').oninput = () => { picked = 0; showResults() }
 $('query').onkeydown = (e) => {
   const n = items().length - 1
