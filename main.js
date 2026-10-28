@@ -329,6 +329,11 @@ const commands = {
   moveTab(id, target, where) {
     if (tabs.move(space(), id, target, where)) render()
   },
+  renameSpace(id, name) {
+    const s = state.spaces.find((s) => s.id === id)
+    name = String(name).trim().slice(0, 60)
+    if (s && name) { s.name = name; render() }
+  },
   toggleFolder(id) {
     const f = [...nodes(space().pinned)].find((f) => f.id === id)
     if (f?.children) { f.open = !f.open; render() }

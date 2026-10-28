@@ -48,6 +48,7 @@
   #favs .fav.active { background: var(--active); box-shadow: 0 1px 3px rgba(0,0,0,.1); }
   #favs .icon { width: 20px; height: 20px; border-radius: 5px; }
   #space-name { font-weight: 600; font-size: 12px; letter-spacing: .02em; color: var(--muted); padding: 14px 8px 6px; }
+  #space-name input { width: 100%; margin: -3px 0 -3px -4px; padding: 2px 4px; border: 0; border-radius: 5px; outline: 1.5px solid var(--c); font: inherit; letter-spacing: inherit; color: var(--text); background: var(--active); }
   #tabs { flex: 1; overflow-y: auto; margin: 0 -2px; padding: 0 2px; }
   #tabs::-webkit-scrollbar { display: none; }
 
@@ -200,6 +201,23 @@ $('import').onclick = () => camber.send('importArc')
 $('update').querySelector('a').onclick = () => camber.send('openUpdate')
 $('update').querySelector('button').onclick = () => camber.send('dismissUpdate')
 $('pill').onclick = () => camber.send('openPalette', 'edit')
+// double-click the space name to rename it: Enter saves, Esc or clicking away cancels
+$('space-name').ondblclick = () => {
+  const box = $('space-name'), s = current.spaces[current.active]
+  if (box.querySelector('input')) return
+  const input = el('input')
+  input.value = s.name
+  input.spellcheck = false
+  const done = (name) => { box.textContent = name }
+  input.onkeydown = (e) => {
+    if (e.key === 'Enter' && input.value.trim()) { camber.send('renameSpace', s.id, input.value); done(input.value.trim()) }
+    else if (e.key === 'Escape') done(s.name)
+  }
+  input.onblur = () => { if (input.isConnected) done(s.name) }
+  box.replaceChildren(input)
+  input.focus()
+  input.select()
+}
 for (const [id, cmd] of [['nav-sidebar', 'toggleSidebar'], ['nav-back', 'back'], ['nav-forward', 'forward'], ['nav-reload', 'reload']]) $(id).onclick = () => camber.send(cmd)
 const ICONS = { reload: '<path d="M15.5 10a5.5 5.5 0 1 1-1.6-3.9"/><path d="M15.5 3.5v3.2h-3.2"/>', stop: '<path d="M5.5 5.5l9 9M14.5 5.5l-9 9"/>' }
 
@@ -223,7 +241,7 @@ camber.onState(({ state, sidebarOpen, offerArc, tabId, extensionsVersion, nav, p
   document.documentElement.style.setProperty('--c', s.color)
   $('sidebar').style.visibility = sidebarOpen ? '' : 'hidden'
   $('import').hidden = !offerArc
-  $('space-name').textContent = s.name
+  if (!$('space-name').querySelector('input')) $('space-name').textContent = s.name
 
   const active = tabsOf(s).find((t) => t.id === s.activeId)
   // address pill: lock for https, the domain, and the rest of the url on hover
