@@ -69,6 +69,8 @@ Cmd on macOS, Ctrl on Linux and Windows.
 | Cmd+D | pin or unpin |
 | Cmd+R, Cmd+[, Cmd+] | reload, back, forward |
 | Cmd+S | toggle sidebar |
+| Cmd+Shift+N | little window |
+| Cmd+O | move the little window's page into the current space |
 | Cmd+Ctrl+Left/Right (Ctrl+Alt on Linux/Windows) | previous/next space |
 
 Drag tabs to reorder them; dropping a tab among the pinned ones pins it, and
@@ -76,6 +78,11 @@ dropping a pinned tab under New Tab unpins it. Double-click a space's name to
 rename it. Closing a tab takes you back to the tab you were on before it.
 Unpinned tabs you haven't opened for 12 hours are closed (Tab > Archive After:
 12h, 24h or Off).
+
+File > Make camber the Default Browser sends links from other apps to camber.
+On Linux, if that doesn't stick, run
+`xdg-settings set default-web-browser camber.desktop`. A link from outside opens
+in a little window; Open in camber (Cmd+O) moves it into the current space.
 
 Each space has a profile, and each profile is its own session, so logins stay
 apart. Spaces can share a profile, like in Arc.
@@ -99,6 +106,10 @@ Importing again replaces the spaces from the earlier import instead of adding
 copies. Not imported: history, passwords, bookmarks, extensions, Boosts and
 Easels. Split views and tab groups become plain tabs. You sign in to sites again.
 
+Air Traffic Control: on a site, Tab > Always Open Links to This Site in This
+Space, and links to it (and its subdomains) from other apps open in that space.
+Tab > Forget Routing Rule for This Site undoes it.
+
 State lives in `state.json` in the app's user data folder.
 
 Extensions: install from the Chrome Web Store (File > Chrome Web Store), and their
@@ -109,7 +120,9 @@ buttons show up in the sidebar.
 - 1Password doesn't work yet. Bitwarden installs and opens; autofill with a
   logged-in vault is untested.
 - No auto-update, no code signing, no Windows arm64 build.
-- No sync, split view, Little Arc, Boosts or Live Folders.
+- No Widevine: Netflix, Prime Video, Disney+ and Spotify web do not play (stock
+  Electron ships no DRM module).
+- No sync, split view, Peek, Boosts or Live Folders.
 
 ## Remote debugging
 
