@@ -686,21 +686,25 @@ function guardPermissions(ses) {
   const originOf = (url) => { try { const u = new URL(url); return u.protocol + '//' + u.host } catch { return '' } }
   ses.setPermissionCheckHandler((_, name, origin, details) =>
     tabs.checked(state.permissions, originOf(origin), name, tabs.permKeys(name, [details.mediaType])))
-  ses.setPermissionRequestHandler(async (_, name, callback, details) => {
+  ses.setPermissionRequestHandler((_, name, callback, details) => {
     const origin = originOf(details.requestingUrl), keys = tabs.permKeys(name, details.mediaTypes)
-    const known = tabs.permission(state.permissions, origin, name, keys)
-    if (known !== undefined) return callback(known)
-    const { response } = await dialog.showMessageBox(BaseWindow.getFocusedWindow() || win, {
-      message: `${new URL(origin).host} wants to use your ${keys.join(' and ')}`,
-      buttons: ['Allow', 'Block'], defaultId: 1, cancelId: 1,
-    })
-    const ok = response === 0
-    state.permissions ??= {}
-    state.permissions[origin] = { ...state.permissions[origin], ...Object.fromEntries(keys.map((k) => [k, ok])) }
-    render()
-    callback(ok)
+    const known = () => tabs.permission(state.permissions, origin, name, keys)
+    if (known() !== undefined) return callback(known())
+    askPermission(origin + ' ' + keys.join(' '), async () => {
+      if (known() !== undefined) return known() // answered while this one waited its turn
+      const { response } = await dialog.showMessageBox(BaseWindow.getFocusedWindow() || win, {
+        message: `${new URL(origin).host} wants to use your ${keys.join(' and ')}`,
+        buttons: ['Allow', 'Block'], defaultId: 1, cancelId: 1,
+      })
+      const ok = response === 0
+      state.permissions ??= {}
+      state.permissions[origin] = { ...state.permissions[origin], ...Object.fromEntries(keys.map((k) => [k, ok])) }
+      render()
+      return ok
+    }).then(callback, () => callback(false))
   })
 }
+const askPermission = tabs.asker()
 
 app.whenReady().then(() => {
   if (!solo) return

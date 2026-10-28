@@ -114,6 +114,21 @@ function permission(perms, origin, name, keys) {
 // undecided; only these two, since showing a notification or opening a device still goes through the dialog
 const checked = (perms, origin, name, keys) => (permission(perms, origin, name, keys) ?? ['media', 'notifications'].includes(name)) === true
 
+// permission dialogs: one on screen at a time, a request for an answer already being asked shares it,
+// and past `max` waiting the rest are refused without a dialog
+function asker(max = 8) {
+  const waiting = new Map()
+  let last = Promise.resolve()
+  return (key, ask) => {
+    if (waiting.has(key)) return waiting.get(key)
+    if (waiting.size >= max) return Promise.resolve(false)
+    const p = last.then(ask)
+    waiting.set(key, p)
+    last = p.catch(() => {}).then(() => { waiting.delete(key) })
+    return p
+  }
+}
+
 // Air Traffic Control rules ({ host, spaceId }): a rule for github.com covers gist.github.com
 // but not notgithub.com
 const covers = (rule, host) => host === rule.host || host.endsWith('.' + rule.host)
@@ -130,4 +145,4 @@ function route(routes, url, spaceIds) {
 // today and favorites); a restored one that points elsewhere is dropped
 const pairOk = (split, ids) => Array.isArray(split) && split.length === 2 && split[0] !== split[1] && split.every((id) => ids.includes(id))
 
-module.exports = { nodes, detach, move, touch, forget, afterClose, prune, web, loadable, permKeys, permission, checked, covers, route, pairOk }
+module.exports = { nodes, detach, move, touch, forget, afterClose, prune, web, loadable, permKeys, permission, checked, asker, covers, route, pairOk }

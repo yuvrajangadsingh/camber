@@ -1,6 +1,6 @@
 const test = require('node:test')
 const assert = require('node:assert')
-const { touch, forget, afterClose, move, prune, web, loadable, permKeys, permission, checked, pairOk, route: tabsRoute } = require('../tabs')
+const { touch, forget, afterClose, move, prune, web, loadable, permKeys, permission, checked, asker, pairOk, route: tabsRoute } = require('../tabs')
 
 test('closing a tab goes back to the one used before it', () => {
   let mru = []
@@ -181,4 +181,31 @@ test('an undecided site reads notifications and media as askable, a blocked one 
   assert.strictEqual(look('https://b.example', 'geolocation'), false)
   assert.strictEqual(look('https://b.example', 'openExternal'), false)
   assert.strictEqual(look('file://', 'notifications'), false)
+})
+
+test('one permission dialog at a time, and the same question is asked once', async () => {
+  const ask = asker(3), shown = [], answers = []
+  const dialog = (name, ok) => () => { shown.push(name); return new Promise((r) => answers.push(() => r(ok))) }
+  const tick = () => new Promise(setImmediate)
+  const a1 = ask('a mic', dialog('a mic', false)), a2 = ask('a mic', dialog('a mic again', true))
+  const b = ask('b mic', dialog('b mic', true))
+  ask('c mic', dialog('c mic', true))
+  assert.strictEqual(a1, a2)
+  // a fourth question while three wait is refused without a dialog
+  assert.strictEqual(await ask('d mic', dialog('d mic', true)), false)
+  await tick()
+  assert.deepStrictEqual(shown, ['a mic']) // b waits for a's dialog to close
+  answers.shift()()
+  assert.deepStrictEqual([await a1, await a2], [false, false])
+  await tick()
+  assert.deepStrictEqual(shown, ['a mic', 'b mic'])
+  answers.shift()()
+  assert.strictEqual(await b, true)
+  // once answered, the same key can be asked again (the caller remembers answers, not this queue)
+  await tick()
+  answers.shift()()
+  await tick()
+  ask('a mic', dialog('a mic later', true))
+  await tick()
+  assert.deepStrictEqual(shown, ['a mic', 'b mic', 'c mic', 'a mic later'])
 })
