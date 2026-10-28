@@ -240,12 +240,12 @@ function dropView(id) {
 
 // closing a pinned tab only unloads it, like Arc; closing a today tab removes it.
 // The space then goes back to the tab used before, not to the top of the list.
-function closeTab() {
-  const s = space()
-  const id = s.activeId
-  if (!id) return
+function closeTab(id = space().activeId) {
+  const s = find(id)?.s
+  if (!s) return
   dropView(id)
   if (s.today.some((t) => t.id === id)) detach(s, id)
+  if (id !== s.activeId) return render()
   s.activeId = null
   const ids = [...tabsOf(s)].map((t) => t.id)
   const next = tabs.afterClose(id, s.mru, ids, s.today.map((t) => t.id), ids.filter((i) => views.has(i)))
@@ -322,6 +322,7 @@ const toggleSidebar = () => { sidebarOpen = !sidebarOpen; layout(); render() }
 const commands = {
   select(id) { closePalette(); select(id) },
   newSpace,
+  closeTab: (id) => closeTab(id),
   importArc: () => importArc(), // never a renderer-supplied path
   closePalette,
   openPalette: (mode) => openPalette(mode === 'edit' ? 'edit' : 'new'),
@@ -367,7 +368,7 @@ function menu() {
       submenu: [
         item('New Tab', 'CmdOrCtrl+T', () => openPalette('new')),
         item('Open Location', 'CmdOrCtrl+L', () => openPalette('edit')),
-        item('Close Tab', 'CmdOrCtrl+W', closeTab),
+        item('Close Tab', 'CmdOrCtrl+W', () => closeTab()),
         item('Reload', 'CmdOrCtrl+R', reload),
         item('Back', 'CmdOrCtrl+[', back),
         item('Forward', 'CmdOrCtrl+]', forward),

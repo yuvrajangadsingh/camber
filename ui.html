@@ -55,6 +55,9 @@
   .row:hover { background: var(--hover); }
   .row.active { background: var(--active); box-shadow: 0 1px 3px rgba(0,0,0,.1); }
   .row span { overflow: hidden; text-overflow: ellipsis; }
+  .row .close { display: none; margin: 0 -4px 0 auto; flex: none; width: 22px; height: 22px; border: 0; border-radius: 6px; padding: 0; background: transparent; color: var(--muted); font-size: 15px; line-height: 22px; }
+  .row:hover .close { display: block; }
+  .row .close:hover { background: var(--hover); color: var(--text); }
   .icon { width: 16px; height: 16px; flex: none; border-radius: 4px; }
   .letter { display: grid; place-items: center; color: #fff; font-size: 10px; font-weight: 700; }
   .caret { width: 16px; flex: none; text-align: center; color: var(--muted); transition: transform .15s; }
@@ -155,12 +158,22 @@ function tabRow(t, activeId) {
   return r
 }
 
+// a sidebar tab row: hover × closes a today tab and unloads a pinned one, same as Cmd+W
+function sidebarRow(t, activeId, today) {
+  const r = tabRow(t, activeId)
+  const x = el('button', 'close', '×')
+  x.title = today ? 'Close tab' : 'Unload tab'
+  x.onclick = (e) => { e.stopPropagation(); camber.send('closeTab', t.id) }
+  r.append(x)
+  return r
+}
+
 const flat = (list) => list.flatMap((it) => (it.children ? flat(it.children) : [it]))
 const tabsOf = (s) => flat([...s.pinned, ...s.today, ...(current.favorites?.[s.profile] || [])])
 
 function renderItems(list, box, activeId) {
   for (const it of list) {
-    if (!it.children) { box.append(tabRow(it, activeId)); continue }
+    if (!it.children) { box.append(sidebarRow(it, activeId)); continue }
     const f = el('div', 'row folder' + (it.open ? ' open' : ''))
     f.append(el('div', 'caret', '›'), el('span', '', it.title))
     f.onclick = () => camber.send('toggleFolder', it.id)
@@ -235,7 +248,7 @@ camber.onState(({ state, sidebarOpen, offerArc, tabId, extensionsVersion, nav, p
   nt.append(el('div', 'icon plus', '+'), el('span', '', 'New Tab'))
   nt.onclick = () => camber.send('openPalette', 'new')
   box.append(nt)
-  s.today.forEach((t) => box.append(tabRow(t, s.activeId)))
+  s.today.forEach((t) => box.append(sidebarRow(t, s.activeId, true)))
 
   const bar = $('spaces')
   bar.replaceChildren()
