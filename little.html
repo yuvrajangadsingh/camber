@@ -1,0 +1,47 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'">
+<style>
+  /* the bar on top of a little window: back, the address, Open in camber */
+  html, body { margin: 0; height: 100%; overflow: hidden; font: 13px system-ui, -apple-system, sans-serif; color: #1d1d1f; background: #ececee; user-select: none; cursor: default; }
+  body { display: flex; align-items: center; gap: 6px; padding: 0 8px; -webkit-app-region: drag; }
+  /* macOS traffic lights sit at x 12-64 (trafficLightPosition in main.js) */
+  body.mac { padding-left: 76px; }
+  button, input { -webkit-app-region: no-drag; height: 26px; border: 0; border-radius: 7px; font: inherit; color: inherit; }
+  button { padding: 0 9px; background: transparent; white-space: nowrap; }
+  button:hover:not(:disabled) { background: rgba(127,127,127,.18); }
+  button:disabled { opacity: .3; }
+  #back { font-size: 18px; line-height: 24px; }
+  #open { font-weight: 600; }
+  input { flex: 1; min-width: 0; padding: 0 10px; outline: 0; background: rgba(255,255,255,.75); }
+  input:focus { box-shadow: inset 0 0 0 1.5px #5b6ee1; }
+  @media (prefers-color-scheme: dark) {
+    html, body { color: #f2f2f4; background: #2a2a2e; }
+    input { background: rgba(255,255,255,.09); }
+  }
+</style>
+</head>
+<body>
+<button id="back" title="Back (⌘[)" disabled>‹</button>
+<input id="url" placeholder="Search or enter URL" spellcheck="false">
+<button id="open" title="Open in camber (⌘O)">Open in camber</button>
+<script>
+const $ = (id) => document.getElementById(id)
+camber.onState(({ url, back, mac }) => {
+  document.body.classList.toggle('mac', mac)
+  $('back').disabled = !back
+  if (document.activeElement !== $('url')) $('url').value = url === 'about:blank' ? '' : url
+})
+// Cmd+L, and a new empty little window
+camber.onPalette(() => { $('url').focus(); $('url').select() })
+$('back').onclick = () => camber.send('back')
+$('open').onclick = () => camber.send('open')
+$('url').onkeydown = (e) => {
+  if (e.key === 'Enter' && $('url').value.trim()) { camber.send('go', $('url').value); $('url').blur() }
+  if (e.key === 'Escape') $('url').blur()
+}
+</script>
+</body>
+</html>

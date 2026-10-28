@@ -75,7 +75,8 @@ const linksIn = (argv) => argv.filter((a) => /^https?:\/\//i.test(a))
 function openLink(url) {
   if (!ready) return waiting.push(url)
   const i = state.spaces.findIndex((s) => s.id === tabs.route(state.routes, url))
-  if (i >= 0) state.active = i
+  if (i < 0) return little(url)
+  state.active = i
   newTab(url)
   if (win.isMinimized()) win.restore()
   win.focus()
@@ -303,6 +304,64 @@ function setArchiveHours(h) {
   render()
 }
 
+// Little Arc: a link from outside with no routing rule opens in a small window of its own, on
+// the current space's profile so logins work. Open in camber (Cmd+O) moves it into the space.
+const littles = new Map() // BaseWindow -> { bar, page, url }
+const BAR = 38
+function little(url) {
+  const w = new BaseWindow({ width: 900, height: 640, center: true, ...(MAC ? { titleBarStyle: 'hiddenInset', trafficLightPosition: { x: 12, y: 12 } } : { autoHideMenuBar: true }) })
+  const bar = new WebContentsView({ webPreferences: { preload: path.join(__dirname, 'preload.js'), sandbox: false } })
+  const page = new WebContentsView({ webPreferences: { partition: 'persist:' + space().profile } })
+  w.contentView.addChildView(page)
+  w.contentView.addChildView(bar)
+  const fit = () => {
+    const { width, height } = w.getContentBounds()
+    bar.setBounds({ x: 0, y: 0, width, height: BAR })
+    page.setBounds({ x: 0, y: BAR, width, height: height - BAR })
+  }
+  fit()
+  w.on('resize', fit)
+  const wc = page.webContents
+  const l = { bar, page, url: url || 'about:blank' }
+  littles.set(w, l)
+  // a page that failed to load (bad host, offline) has no URL, so the one asked for stands in
+  const sync = () => bar.webContents.send('state', { url: wc.getURL() || l.url, back: wc.navigationHistory.canGoBack(), mac: MAC })
+  wc.on('did-navigate', sync)
+  wc.on('did-navigate-in-page', sync)
+  wc.on('page-title-updated', (_, title) => w.setTitle(title))
+  // links that want a new window stay in this one
+  wc.setWindowOpenHandler(({ url }) => { wc.loadURL(url); return { action: 'deny' } })
+  bar.webContents.loadFile('little.html')
+  bar.webContents.once('did-finish-load', () => {
+    sync()
+    if (!url) { bar.webContents.focus(); bar.webContents.send('palette') }
+  })
+  wc.loadURL(l.url)
+  w.on('closed', () => { littles.delete(w); wc.close(); bar.webContents.close() })
+  return w
+}
+
+const focusedLittle = () => { const w = BaseWindow.getFocusedWindow(); return littles.has(w) ? w : null }
+
+function intoCamber(w) {
+  const l = littles.get(w)
+  const url = l.page.webContents.getURL() || l.url
+  w.close()
+  if (!url || url === 'about:blank') return
+  newTab(url)
+  win.focus()
+}
+
+const littleCommands = {
+  back: (w) => littles.get(w).page.webContents.navigationHistory.goBack(),
+  go(w, text) {
+    const l = littles.get(w)
+    l.url = toURL(String(text))
+    l.page.webContents.loadURL(l.url)
+  },
+  open: intoCamber,
+}
+
 // a space with tabs never shows an empty content area: last active tab, else its first tab
 function showSpace(i) {
   state.active = i
@@ -352,9 +411,11 @@ function closePalette() {
 }
 
 const current = () => views.get(space().activeId)?.webContents
-const back = () => current()?.navigationHistory.goBack()
-const forward = () => current()?.navigationHistory.goForward()
-const reload = () => { const wc = current(); if (wc?.isLoading()) wc.stop(); else wc?.reload() }
+// the menu's back/forward/reload act on a little window when one is in front
+const target = () => littles.get(focusedLittle())?.page.webContents || current()
+const back = () => target()?.navigationHistory.goBack()
+const forward = () => target()?.navigationHistory.goForward()
+const reload = () => { const wc = target(); if (wc?.isLoading()) wc.stop(); else wc?.reload() }
 const toggleSidebar = () => { sidebarOpen = !sidebarOpen; layout(); render() }
 
 const commands = {
@@ -396,7 +457,9 @@ const commands = {
 }
 
 ipcMain.on('cmd', (e, name, ...args) => {
-  if (e.sender === ui.webContents && Object.hasOwn(commands, name)) commands[name](...args)
+  if (e.sender === ui.webContents && Object.hasOwn(commands, name)) return commands[name](...args)
+  const w = [...littles].find(([, l]) => l.bar.webContents === e.sender)?.[0]
+  if (w && Object.hasOwn(littleCommands, name)) littleCommands[name](w, ...args)
 })
 
 function menu() {
@@ -418,8 +481,15 @@ function menu() {
       label: 'Tab',
       submenu: [
         item('New Tab', 'CmdOrCtrl+T', () => openPalette('new')),
-        item('Open Location', 'CmdOrCtrl+L', () => openPalette('edit')),
-        item('Close Tab', 'CmdOrCtrl+W', () => closeTab()),
+        item('Open Location', 'CmdOrCtrl+L', () => {
+          const w = focusedLittle()
+          if (!w) return openPalette('edit')
+          littles.get(w).bar.webContents.focus()
+          littles.get(w).bar.webContents.send('palette')
+        }),
+        item('Close Tab', 'CmdOrCtrl+W', () => { const w = focusedLittle(); if (w) w.close(); else closeTab() }),
+        item('New Little Window', 'CmdOrCtrl+Shift+N', () => little()),
+        item('Open in camber', 'CmdOrCtrl+O', () => { const w = focusedLittle(); if (w) intoCamber(w) }),
         item('Reload', 'CmdOrCtrl+R', reload),
         item('Back', 'CmdOrCtrl+[', back),
         item('Forward', 'CmdOrCtrl+]', forward),

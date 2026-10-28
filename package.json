@@ -33,6 +33,7 @@
       "main.js",
       "preload.js",
       "ui.html",
+      "little.html",
       "arc.js",
       "tabs.js",
       "update.js",
