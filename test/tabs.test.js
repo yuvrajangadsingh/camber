@@ -51,6 +51,11 @@ test('drag and drop moves tabs within and across pinned, folders and today', () 
   move(s, 'c1', 'f', 'before')
   assert.deepStrictEqual(ids(s.pinned), ['c1', 'f', 't1', 't3'])
 
+  // an old pinned tab unpinned (Cmd+D or drag) counts as just used, so the next archive keeps it
+  s = { activeId: 'x', pinned: [{ id: 'old', lastActive: 0 }], today: [] }
+  move(s, 'old', 'today', undefined, 100 * 3600000)
+  assert.deepStrictEqual(prune({ active: 0, spaces: [s] }, 100 * 3600000, 12), [])
+
   // nothing changes for folders, unknown ids, or a tab dropped on itself
   s = space()
   for (const [id, target] of [['f', 'today'], ['nope', 'p1'], ['t1', 'nope'], ['t1', 't1']]) assert.strictEqual(move(s, id, target, 'before'), false)

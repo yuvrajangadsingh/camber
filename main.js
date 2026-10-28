@@ -301,16 +301,13 @@ function closeTab(id = space().activeId) {
   else { layout(); render() }
 }
 
+// Cmd+D and drag both go through tabs.move; favorites stay favorites
+function moveTab(id, target, where) {
+  if (tabs.move(space(), id, target, where, Date.now())) render()
+}
 function togglePin() {
   const s = space()
-  const id = s.activeId
-  if (!id) return
-  const pinned = !s.today.some((t) => t.id === id)
-  const t = detach(s, id)
-  if (!t) return // favorites stay favorites
-  if (pinned) s.today.unshift(t)
-  else s.pinned.push(t)
-  render()
+  if (s.activeId) moveTab(s.activeId, s.today.some((t) => t.id === s.activeId) ? 'pinned' : 'today')
 }
 
 function splitWith(id) {
@@ -544,11 +541,7 @@ const commands = {
   openUpdate: () => update && newTab(update.url),
   dismissUpdate() { if (update) { state.dismissedUpdate = update.version; render() } },
   // drag and drop in the sidebar; a today tab dropped among the pinned ones is pinned, and back
-  moveTab(id, target, where) {
-    if (!tabs.move(space(), id, target, where)) return
-    find(id).t.lastActive = Date.now() // an old pinned tab dropped into today isn't archived right away
-    render()
-  },
+  moveTab,
   renameSpace(id, name) {
     const s = state.spaces.find((s) => s.id === id)
     name = String(name).trim().slice(0, 60)

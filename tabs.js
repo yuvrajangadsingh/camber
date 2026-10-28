@@ -22,7 +22,8 @@ function detach(s, id) {
 // moves tab `id` before or after `target`, or into folder `target` with where 'inside'.
 // target 'pinned' is the end of the pinned list, 'today' the top of today; landing in
 // pinned pins a today tab and landing in today unpins. Folders and favorites don't move.
-function move(s, id, target, where) {
+// A moved tab counts as used at `now`, so an old pinned tab unpinned into today isn't archived at once.
+function move(s, id, target, where, now) {
   const find = (x) => [...nodes([...s.pinned, ...s.today])].find((it) => it.id === x)
   const t = find(id)
   if (!t || t.children || id === target || !(target === 'pinned' || target === 'today' || find(target))) return false
@@ -39,6 +40,7 @@ function move(s, id, target, where) {
     } else if (where === 'after') i++
   }
   list.splice(i, 0, t)
+  t.lastActive = now
   return true
 }
 
