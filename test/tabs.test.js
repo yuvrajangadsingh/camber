@@ -1,6 +1,6 @@
 const test = require('node:test')
 const assert = require('node:assert')
-const { touch, forget, afterClose, move, prune, web, loadable, permKeys, permission, pairOk, route: tabsRoute } = require('../tabs')
+const { touch, forget, afterClose, move, prune, web, loadable, permKeys, permission, checked, pairOk, route: tabsRoute } = require('../tabs')
 
 test('closing a tab goes back to the one used before it', () => {
   let mru = []
@@ -167,4 +167,18 @@ test('a site gets a permission only after its own approval', () => {
   assert.strictEqual(ask('', 'notifications'), false)
   assert.strictEqual(ask('https://other.example', 'fullscreen'), true)
   assert.strictEqual(ask('chrome-extension://abc', 'notifications'), true)
+})
+
+test('an undecided site reads notifications and media as askable, a blocked one as denied', () => {
+  const perms = { 'https://a.example': { notifications: false, camera: false } }
+  const look = (origin, name, media) => checked(perms, origin, name, permKeys(name, media))
+  assert.strictEqual(look('https://b.example', 'notifications'), true)
+  assert.strictEqual(look('https://b.example', 'media', ['video']), true)
+  assert.strictEqual(look('https://b.example', 'media', ['unknown']), true)
+  assert.strictEqual(look('https://a.example', 'notifications'), false)
+  assert.strictEqual(look('https://a.example', 'media', ['video']), false)
+  // the rest stays a plain no until asked, and never-asked names and non-web pages stay denied
+  assert.strictEqual(look('https://b.example', 'geolocation'), false)
+  assert.strictEqual(look('https://b.example', 'openExternal'), false)
+  assert.strictEqual(look('file://', 'notifications'), false)
 })

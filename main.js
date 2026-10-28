@@ -685,7 +685,7 @@ app.on('session-created', (s) => {
 function guardPermissions(ses) {
   const originOf = (url) => { try { const u = new URL(url); return u.protocol + '//' + u.host } catch { return '' } }
   ses.setPermissionCheckHandler((_, name, origin, details) =>
-    tabs.permission(state.permissions, originOf(origin), name, tabs.permKeys(name, [details.mediaType])) === true)
+    tabs.checked(state.permissions, originOf(origin), name, tabs.permKeys(name, [details.mediaType])))
   ses.setPermissionRequestHandler(async (_, name, callback, details) => {
     const origin = originOf(details.requestingUrl), keys = tabs.permKeys(name, details.mediaTypes)
     const known = tabs.permission(state.permissions, origin, name, keys)
