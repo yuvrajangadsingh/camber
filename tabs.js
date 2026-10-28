@@ -61,18 +61,19 @@ function afterClose(closed, mru, ids, today, loaded) {
   return (mru || []).find(ok) || today.find(ok) || loaded.find(ok) || ids.find(ok)
 }
 
-// closes today tabs not activated for `hours` (0 = never) and returns their ids. The tab on
-// screen is kept however old it is; a tab with no lastActive yet (state from an older camber,
+// closes today tabs not activated for `hours` (0 = never) and returns their ids. The tabs on
+// screen (the active one, and both panes of its split) are kept however old they are; a tab with no lastActive yet (state from an older camber,
 // a fresh import) starts its clock now instead of going at once.
 function prune(state, now, hours) {
   if (!hours) return []
   const gone = []
-  const shown = state.spaces[state.active]?.activeId
+  const a = state.spaces[state.active]
+  const shown = a?.split?.includes(a.activeId) ? a.split : [a?.activeId]
   for (const s of state.spaces) {
     const out = []
     s.today = s.today.filter((t) => {
       t.lastActive ??= now
-      const keep = t.id === shown || now - t.lastActive < hours * 3600000
+      const keep = shown.includes(t.id) || now - t.lastActive < hours * 3600000
       if (!keep) out.push(t.id)
       return keep
     })

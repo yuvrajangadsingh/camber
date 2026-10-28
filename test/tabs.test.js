@@ -96,6 +96,12 @@ test('archives today tabs that sat unused past the limit', () => {
   assert.strictEqual(s.spaces[1].activeId, null)
   assert.deepStrictEqual(s.spaces[1].mru, [])
 
+  // the other pane of the shown split is on screen too; a split the active tab isn't in is not
+  s = state()
+  s.spaces[0].split = ['shown', 'old']
+  s.spaces[1].split = ['old2', 'mid']
+  assert.deepStrictEqual(prune(s, now, 12), ['old2', 'mid'])
+
   s = state()
   assert.deepStrictEqual(prune(s, now, 24), ['old2'])
   s = state()

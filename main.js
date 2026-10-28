@@ -227,7 +227,8 @@ function layout() {
   const { width, height } = win.getContentBounds()
   ui.setBounds({ x: 0, y: 0, width, height })
   const p = pair()
-  p?.forEach((id) => viewFor(find(id).t))
+  // both panes count as in use, so the one that isn't active doesn't age into the archive
+  p?.forEach((id) => { const { t } = find(id); t.lastActive = Date.now(); viewFor(t) })
   const shown = new Set([...views.keys()].filter((id) => p ? p.includes(id) : id === space().activeId))
   for (const [id, v] of views) {
     if (onScreen.has(id) !== shown.has(id)) pip(v.webContents, !shown.has(id))
