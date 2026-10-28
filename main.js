@@ -208,11 +208,11 @@ function pip(wc, pop) {
 }
 
 // the ui view fills the window behind the tabs (sidebar + tinted frame) and
-// moves on top only while the command bar is open. Leaving a space ends its split.
+// moves on top only while the command bar is open. Leaving a space ends its split and its peek.
 let shownSpace
 let onScreen = new Set()
 function layout() {
-  if (shownSpace && shownSpace !== space()) shownSpace.split = null
+  if (shownSpace && shownSpace !== space()) { shownSpace.split = null; closePeek() }
   shownSpace = space()
   win.setBackgroundColor(space().color)
   tintCaption()
@@ -227,7 +227,8 @@ function layout() {
     v.setBounds(paneBounds(id))
   }
   onScreen = shown
-  if (peek) fitPeek()
+  // a tab view loaded just now goes on top, so the ui and the peek are put back over it
+  if (peek) { win.contentView.addChildView(ui); win.contentView.addChildView(peek.view); fitPeek() }
 }
 
 // chrome.* extension APIs and the Web Store, set up once per profile session
@@ -318,6 +319,7 @@ function closeTab(id = space().activeId) {
   dropView(id)
   if (s.today.some((t) => t.id === id)) { detach(s, id); tabs.forget(s, [id]) }
   if (!shown) return render()
+  closePeek() // it was over the page that just went
   s.activeId = null
   const ids = [...tabsOf(s)].map((t) => t.id)
   const next = tabs.afterClose(id, s.mru, ids, s.today.map((t) => t.id), ids.filter((i) => views.has(i)))
@@ -538,8 +540,8 @@ function closePalette() {
 }
 
 const current = () => views.get(space().activeId)?.webContents
-// the menu's back/forward/reload act on a little window when one is in front
-const target = () => littles.get(focusedLittle())?.page.webContents || current()
+// the menu's back/forward/reload act on what is in front: a little window, else the peek
+const target = () => littles.get(focusedLittle())?.page.webContents || peek?.view.webContents || current()
 const back = () => target()?.navigationHistory.goBack()
 const forward = () => target()?.navigationHistory.goForward()
 const reload = () => { const wc = target(); if (wc?.isLoading()) wc.stop(); else wc?.reload() }
