@@ -258,11 +258,12 @@ function extensionsFor(profile) {
   return ext
 }
 
-function viewFor(t) {
+// `adopt` is an already loaded view (a peek) that becomes this tab's page as it is
+function viewFor(t, adopt) {
   if (views.has(t.id)) return views.get(t.id)
   // each space's profile is its own cookie jar, like Arc's profile-per-space
   const { profile } = find(t.id).s
-  const v = new WebContentsView({ webPreferences: { partition: 'persist:' + profile } })
+  const v = adopt || new WebContentsView({ webPreferences: { partition: 'persist:' + profile } })
   v.setBorderRadius(10)
   const wc = v.webContents
   wc.on('page-title-updated', (_, title) => { t.title = title; render() })
@@ -276,7 +277,7 @@ function viewFor(t) {
   wc.setWindowOpenHandler(popups(newTab))
   extensionsFor(profile).addTab(wc, win)
   win.contentView.addChildView(v)
-  wc.loadURL(t.url)
+  if (!adopt) wc.loadURL(t.url)
   views.set(t.id, v)
   return v
 }
@@ -295,9 +296,10 @@ function select(id) {
   v.webContents.focus()
 }
 
-function newTab(url) {
-  const t = { id: uid(), url, title: url }
+function newTab(url, adopt) {
+  const t = { id: uid(), url, title: adopt?.webContents.getTitle() || url }
   space().today.unshift(t)
+  if (adopt) viewFor(t, adopt)
   select(t.id)
 }
 
@@ -503,7 +505,7 @@ async function openPeek(id) {
   const wc = p.view.webContents
   wc.on('did-navigate', (_, url) => { p.url = url; render() })
   wc.on('did-navigate-in-page', (_, url, main) => { if (main) { p.url = url; render() } })
-  wc.on('before-input-event', (e, i) => { if (i.type === 'keyDown' && i.key === 'Escape') { e.preventDefault(); closePeek() } })
+  wc.on('before-input-event', (e, i) => { if (peek === p && i.type === 'keyDown' && i.key === 'Escape') { e.preventDefault(); closePeek() } })
   wc.setWindowOpenHandler(popups((u) => wc.loadURL(u)))
   win.contentView.addChildView(ui)
   win.contentView.addChildView(p.view)
@@ -514,10 +516,10 @@ async function openPeek(id) {
   wc.focus()
 }
 
-function closePeek() {
+// keep: the view lives on as a tab (peekToTab), so it is not closed
+function closePeek(keep) {
   if (!peek) return
-  win.contentView.removeChildView(peek.view)
-  peek.view.webContents.close()
+  if (!keep) { win.contentView.removeChildView(peek.view); peek.view.webContents.close() }
   peek = null
   win.contentView.removeChildView(ui)
   win.contentView.addChildView(ui, 0)
@@ -525,10 +527,12 @@ function closePeek() {
   current()?.focus()
 }
 
+// the peeked page moves into the tab with its form input, history and scroll
 function peekToTab() {
-  const url = peek?.url
-  closePeek()
-  if (url) newTab(url)
+  const p = peek
+  if (!p) return
+  closePeek(true)
+  newTab(p.url, p.view)
 }
 
 function closePalette() {
@@ -556,7 +560,7 @@ const commands = {
   openPalette: (mode) => openPalette(['edit', 'split'].includes(mode) ? mode : 'new'),
   split(id) { closePalette(); splitWith(id) },
   peek: openPeek,
-  closePeek,
+  closePeek: () => closePeek(), // never keep from the renderer
   peekToTab,
   go(text, mode) {
     closePalette()
