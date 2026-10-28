@@ -203,14 +203,16 @@ const POP = `(async () => {
 })()`
 const UNPOP = `document.pictureInPictureElement && document.exitPictureInPicture().catch((e) => console.warn('camber pip:', e.message))`
 const run = (wc, code, gesture) => wc.executeJavaScriptInIsolatedWorld(WORLD, [{ code }], gesture)
-// one request at a time per page: coming back waits for a pop-out still in flight, then undoes it
+// one request at a time per page: coming back waits for a pop-out still in flight, then undoes it.
+// Coming back undoes a pop-out even with the setting off, so turning it off never leaves one stuck,
+// and a pop-out still waiting when the setting goes off doesn't happen.
 const pipQueue = new WeakMap()
 function pip(wc, pop) {
-  if (!autoPip() || wc.isDestroyed() || !/^https?:/.test(wc.getURL())) return
+  if ((pop && !autoPip()) || wc.isDestroyed() || !/^https?:/.test(wc.getURL())) return
   const job = async () => {
     if (wc.isDestroyed()) return
     if (!pop) await run(wc, UNPOP, false)
-    else if (await run(wc, PLAYING, false)) await run(wc, POP, true)
+    else if (await run(wc, PLAYING, false) && autoPip()) await run(wc, POP, true)
   }
   pipQueue.set(wc, (pipQueue.get(wc) || Promise.resolve()).then(job).catch(() => {}))
 }
