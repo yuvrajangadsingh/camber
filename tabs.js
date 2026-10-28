@@ -93,6 +93,10 @@ function web(url) {
 // what a tab, peek or little window may load at all: web pages plus extension pages
 const loadable = (url) => web(url) || /^chrome-extension:\/\/[a-z]+\//.test(url)
 
+// where a page may take itself (a link, location.href, a server redirect): also a blob: it made, such
+// as a generated PDF, and about:blank with a fragment. Never accepted as outside input.
+const navigable = (url) => loadable(url) || /^(blob:|about:blank#)/.test(url)
+
 // site permissions: these are asked once per origin and remembered in `perms`
 // ({ [origin]: { [key]: true | false } }); fullscreen and copy-to-clipboard just work; the rest is denied.
 // HID, USB, serial, Bluetooth and screen sharing need device pickers camber doesn't have, so they are denied too.
@@ -153,4 +157,4 @@ function route(routes, url, spaceIds) {
 // today and favorites); a restored one that points elsewhere is dropped
 const pairOk = (split, ids) => Array.isArray(split) && split.length === 2 && split[0] !== split[1] && split.every((id) => ids.includes(id))
 
-module.exports = { nodes, detach, move, touch, forget, afterClose, prune, web, loadable, permKeys, permission, checked, permOrigin, asker, covers, route, pairOk }
+module.exports = { nodes, detach, move, touch, forget, afterClose, prune, web, loadable, navigable, permKeys, permission, checked, permOrigin, asker, covers, route, pairOk }

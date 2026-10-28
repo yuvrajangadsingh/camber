@@ -1,6 +1,6 @@
 const test = require('node:test')
 const assert = require('node:assert')
-const { touch, forget, afterClose, move, prune, web, loadable, permKeys, permission, checked, permOrigin, asker, pairOk, route: tabsRoute } = require('../tabs')
+const { touch, forget, afterClose, move, prune, web, loadable, navigable, permKeys, permission, checked, permOrigin, asker, pairOk, route: tabsRoute } = require('../tabs')
 
 test('closing a tab goes back to the one used before it', () => {
   let mru = []
@@ -137,6 +137,13 @@ test('tabs load web and extension pages, never local files or scripts', () => {
   for (const u of ['https://github.com/', 'about:blank', 'chrome-extension://abcdefgh/popup.html']) assert.strictEqual(loadable(u), true, u)
   for (const u of ['file:///etc/hosts', 'FILE:///etc/hosts', 'data:text/html,hi', 'javascript:alert(1)', 'chrome://settings', 'chrome-extension:x', 'view-source:https://a.com', undefined])
     assert.strictEqual(loadable(u), false, String(u))
+})
+
+test('a page may navigate to its own blob: and to about:blank#, outside input may not', () => {
+  for (const u of ['blob:https://docs.example/9f1c', 'about:blank#done', 'about:blank', 'https://a.com/', 'chrome-extension://abcdefgh/x.html']) assert.strictEqual(navigable(u), true, u)
+  for (const u of ['file:///etc/hosts', 'data:text/html,hi', 'javascript:alert(1)', 'chrome://settings', 'about:config', 'about:blankx', undefined])
+    assert.strictEqual(navigable(u), false, String(u))
+  for (const u of ['blob:https://docs.example/9f1c', 'about:blank#done']) assert.strictEqual(loadable(u) || web(u), false, u)
 })
 
 test('a split is two different tabs of its own space', () => {

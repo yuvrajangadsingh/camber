@@ -76,14 +76,16 @@ const linksIn = (argv) => argv.filter(tabs.web)
 const allowed = (url) => tabs.web(url) || void console.warn('camber: dropped a non-web URL:', String(url).slice(0, 80))
 // window.open from a page never makes a window; an allowed URL goes to `open` instead
 const popups = (open) => ({ url }) => { if (allowed(url)) open(url); return { action: 'deny' } }
-// the one gate for every page camber loads (typed, restored, imported, extension-made) and for a
-// page's own top-level navigations: no file:, data:, javascript: or chrome: page ever loads
+// the one gate for every page camber loads (typed, restored, imported, extension-made); a page's own
+// navigations and redirects get tabs.navigable. No file:, data:, javascript: or chrome: page ever loads
 const loadable = (url) => tabs.loadable(url) || void console.warn('camber: did not load', String(url).slice(0, 80))
 function guard(wc) {
   // extensions (chrome.tabs.update) call loadURL directly, and a loadURL never fires will-navigate
   const load = wc.loadURL.bind(wc)
   wc.loadURL = (url, ...rest) => loadable(url) ? load(url, ...rest) : Promise.resolve()
-  wc.on('will-navigate', (e, url) => { if (!loadable(url)) e.preventDefault() })
+  const stay = (e, url) => { if (!tabs.navigable(url)) { console.warn('camber: did not load', String(url).slice(0, 80)); e.preventDefault() } }
+  wc.on('will-navigate', stay)
+  wc.on('will-redirect', stay)
 }
 function openLink(url) {
   if (!allowed(url)) return
