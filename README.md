@@ -1,6 +1,16 @@
 # camber
 
-An open-source browser with Arc's sidebar, spaces, pinned tabs and command bar.
+A free, open-source Arc alternative for macOS, Windows and Linux, with Arc's sidebar, spaces,
+pinned tabs and command bar. It imports your spaces, pinned tabs and folders from Arc, which stops
+working on December 22, 2026.
+
+By default, tabs you haven't looked at for an hour give their memory back and stay in the
+sidebar; the tab on screen and tabs playing sound stay loaded. With 23 tabs open, camber went from
+4.9 GB to 0.85 GB after the unload (summed RSS of every camber process, from source in demo mode on
+an M5 MacBook Air).
+
+Download: [latest release](https://github.com/yuvrajangadsingh/camber/releases/latest) ·
+Website: [yuvrajangadsingh.com/camber](https://www.yuvrajangadsingh.com/camber)
 
 Made by [Yuvraj Angad Singh](https://github.com/yuvrajangadsingh)
 
