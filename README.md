@@ -14,6 +14,8 @@ Website: [yuvrajangadsingh.com/camber](https://www.yuvrajangadsingh.com/camber)
 
 Made by [Yuvraj Angad Singh](https://github.com/yuvrajangadsingh)
 
+[![As seen on Open Source Alternatives](https://www.opensourcealternatives.to/badge-osa.svg)](https://www.opensourcealternatives.to)
+
 ![camber demo: switching spaces, the command bar, split view, Peek, a little window, and a video popping out when you leave its tab](docs/demo.gif)
 
 ## What it looks like
