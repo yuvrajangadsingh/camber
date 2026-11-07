@@ -1,0 +1,50 @@
+name: Bug or idea
+description: Something in camber doesn't work, or could work better
+body:
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What is it?
+      options:
+        - A bug
+        - An idea
+        - Something else
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+      description: For an idea, what you'd like camber to do.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1.
+        2.
+  - type: input
+    id: version
+    attributes:
+      label: camber version
+      description: Report a bug in camber fills this in. Otherwise it's in the file name you downloaded.
+      placeholder: 0.3.1
+  - type: input
+    id: os
+    attributes:
+      label: OS
+      description: On Linux, add your distribution and version.
+      placeholder: macOS 15.4 arm64, Windows 11 x64, Ubuntu 24.04 arm64
+  - type: dropdown
+    id: arc
+    attributes:
+      label: Did you import from Arc?
+      options:
+        - "No"
+        - Yes, with Import from Arc
+        - Yes, from a copied file
+  - type: markdown
+    attributes:
+      value: Please leave out anything private from your Arc data, like tab URLs or titles.
