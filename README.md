@@ -197,8 +197,14 @@ unsigned. camber asks GitHub for the latest release 10 seconds after startup and
 every 6 hours. On Windows and the AppImage it downloads a newer release from this
 repo's GitHub releases in the background and offers a Restart button in the
 sidebar; it never restarts by itself. On macOS (the app isn't signed, so it can't
-update itself) and the .deb it shows a note that links to the release. Those
-requests are the only things it sends.
+update itself) and the .deb it shows a note that links to the release. The full
+list of what camber sends is on its
+[privacy page](https://www.yuvrajangadsingh.com/camber/privacy).
+
+camber is in beta, so you will hit bugs. Feedback in the sidebar (or Help > Report
+a Bug… on macOS) opens GitHub's issue form in your browser with camber's version and
+your OS filled in. That address goes to GitHub when the page opens; nothing is
+posted until you submit. Ideas are welcome there too.
 
 ## License
 

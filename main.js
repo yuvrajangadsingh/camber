@@ -1,4 +1,4 @@
-const { app, BaseWindow, WebContentsView, Menu, dialog, ipcMain, session, nativeTheme, net } = require('electron')
+const { app, BaseWindow, WebContentsView, Menu, dialog, ipcMain, session, nativeTheme, net, shell } = require('electron')
 const { ElectronChromeExtensions } = require('electron-chrome-extensions')
 const { installChromeWebStore } = require('electron-chrome-web-store')
 const fs = require('node:fs')
@@ -172,6 +172,14 @@ function startUpdates() {
   setInterval(checkUpdate, 6 * 60 * 60 * 1000)
 }
 
+// GitHub's issue form in the default browser, with this version and the OS filled in.
+// On Linux getSystemVersion is the kernel, so the form asks for the distribution.
+function reportBug() {
+  const name = { darwin: 'macOS', win32: 'Windows', linux: 'Linux' }[process.platform] || process.platform
+  const q = new URLSearchParams({ template: 'feedback.yml', version: app.getVersion(), os: `${name} ${process.getSystemVersion()} ${process.arch}` })
+  shell.openExternal('https://github.com/yuvrajangadsingh/camber/issues/new?' + q).catch((e) => console.warn('camber feedback:', e?.message))
+}
+
 let saveTimer
 function render() {
   const file = arcPath()
@@ -180,7 +188,7 @@ function render() {
   const nav = { back: !!wc?.navigationHistory.canGoBack(), forward: !!wc?.navigationHistory.canGoForward(), loading: !!wc?.isLoading() }
   const notice = update && state.dismissedUpdate !== update.version ? update : null
   const pane = pair() && paneBounds(space().activeId)
-  ui.webContents.send('state', { state, sidebarOpen, offerArc, tabId: wc?.id, extensionsVersion, nav, platform: process.platform, update: notice, pane, peek: peek && { url: peek.url, ...peekBounds() } })
+  ui.webContents.send('state', { state, sidebarOpen, offerArc, tabId: wc?.id, extensionsVersion, nav, platform: process.platform, update: notice, beta: !DEMO && !state.betaDismissed, pane, peek: peek && { url: peek.url, ...peekBounds() } })
   clearTimeout(saveTimer)
   saveTimer = setTimeout(save, 500)
 }
@@ -656,6 +664,8 @@ const commands = {
   openUpdate: () => update && newTab(update.url),
   restartToUpdate: () => update?.ready && updater.quitAndInstall(),
   dismissUpdate() { if (update) { state.dismissedUpdate = update.version; render() } },
+  reportBug,
+  dismissBeta() { state.betaDismissed = true; render() },
   // drag and drop in the sidebar; a today tab dropped among the pinned ones is pinned, and back
   moveTab,
   renameSpace(id, name) {
@@ -735,6 +745,7 @@ function menu() {
         { role: 'toggleDevTools' },
       ],
     },
+    { role: 'help', submenu: [item('Report a Bug…', undefined, reportBug)] },
   ]))
 }
 

@@ -73,17 +73,26 @@
   .muted { color: var(--muted); }
   .plus { display: grid; place-items: center; font-size: 15px; }
 
-  #update { display: flex; align-items: center; gap: 6px; margin: 8px 0 4px; padding: 5px 4px 5px 10px; min-height: 34px; box-sizing: border-box; border-radius: 9px; background: var(--active); box-shadow: 0 1px 3px rgba(0,0,0,.1); }
-  #update[hidden] { display: none; }
-  #update a { flex: 1; color: var(--text); text-decoration: none; font-weight: 600; cursor: pointer; }
-  #update button { width: 24px; height: 24px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font-size: 15px; }
-  #update button:hover { background: var(--hover); }
+  #update, #beta { display: flex; align-items: center; gap: 6px; margin: 8px 0 4px; padding: 5px 4px 5px 10px; min-height: 34px; box-sizing: border-box; border-radius: 9px; background: var(--active); box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+  #update[hidden], #beta[hidden] { display: none; }
+  #update a, #beta a { flex: 1; color: var(--text); text-decoration: none; font-weight: 600; cursor: pointer; }
+  #update button, #beta button { width: 24px; height: 24px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font-size: 15px; }
+  #update button:hover, #beta button:hover { background: var(--hover); }
+  #beta > div { flex: 1; line-height: 1.35; }
+  #beta .link { width: auto; height: auto; padding: 0; background: none; color: var(--text); font: inherit; font-weight: 600; }
+  #beta .link:hover { background: none; text-decoration: underline; }
   #update .restart { width: auto; padding: 0 8px; color: var(--text); font: inherit; font-weight: 600; }
   #import { margin: 8px 0 4px; height: 34px; border: 0; border-radius: 9px; background: var(--active); color: var(--text); font: inherit; font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
   #actions { display: flex; flex-wrap: wrap; gap: 2px; padding: 6px 2px 0; }
   #actions::part(action) { width: 28px; height: 28px; border-radius: 7px; background-color: transparent; }
   #actions::part(action):hover { background-color: var(--hover); }
-  #spaces { display: flex; gap: 10px; justify-content: center; align-items: center; padding-top: 10px; }
+  /* Feedback on the left, the space dots centered under the sidebar as before */
+  #foot { display: grid; grid-template-columns: 1fr minmax(0, max-content) 1fr; align-items: center; padding-top: 10px; }
+  #foot #feedback { justify-self: start; }
+  #feedback { height: 22px; padding: 0 6px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font: inherit; font-size: 12px; }
+  #feedback:hover { background: var(--hover); color: var(--text); }
+  /* many spaces wrap onto a second line instead of running under the page */
+  #spaces { display: flex; flex-wrap: wrap; gap: 8px 10px; justify-content: center; align-items: center; }
   #spaces button { width: 10px; height: 10px; border-radius: 50%; border: 0; padding: 0; opacity: .5; transition: transform .15s, opacity .15s; }
   #spaces button:hover { opacity: .85; }
   #spaces button.active { opacity: 1; transform: scale(1.35); box-shadow: 0 0 0 2px var(--mix), 0 0 0 3.5px var(--text); }
@@ -126,9 +135,10 @@
   <div id="space-name"></div>
   <div id="tabs"></div>
   <div id="update" hidden><a></a><button class="restart" hidden>Restart</button><button title="Dismiss">×</button></div>
+  <div id="beta" hidden><div>camber is in beta, so you may see bugs.<br><button class="link">Report one on GitHub</button></div><button title="Dismiss">×</button></div>
   <button id="import" hidden>Import from Arc</button>
   <browser-action-list id="actions" alignment="top right"></browser-action-list>
-  <div id="spaces"></div>
+  <div id="foot"><button id="feedback" title="Report a bug or suggest something on GitHub">Feedback</button><div id="spaces"></div></div>
 </div>
 <div id="pane"></div>
 <img id="snap" alt="">
@@ -217,6 +227,9 @@ $('import').onclick = () => camber.send('importArc')
 $('update').querySelector('a').onclick = () => camber.send('openUpdate')
 $('update').querySelector('.restart').onclick = () => camber.send('restartToUpdate')
 $('update').querySelector('[title=Dismiss]').onclick = () => camber.send('dismissUpdate')
+$('beta').querySelector('.link').onclick = () => camber.send('reportBug')
+$('beta').querySelector('[title=Dismiss]').onclick = () => camber.send('dismissBeta')
+$('feedback').onclick = () => camber.send('reportBug')
 $('pill').onclick = () => camber.send('openPalette', 'edit')
 // double-click the space name to rename it: Enter saves, Esc or clicking away cancels
 $('space-name').ondblclick = () => {
@@ -240,7 +253,7 @@ for (const [id, cmd] of [['nav-sidebar', 'toggleSidebar'], ['nav-back', 'back'],
 const ICONS = { reload: '<path d="M15.5 10a5.5 5.5 0 1 1-1.6-3.9"/><path d="M15.5 3.5v3.2h-3.2"/>', stop: '<path d="M5.5 5.5l9 9M14.5 5.5l-9 9"/>' }
 
 let actionsKey
-camber.onState(({ state, sidebarOpen, offerArc, tabId, extensionsVersion, nav, platform, update, pane, peek }) => {
+camber.onState(({ state, sidebarOpen, offerArc, tabId, extensionsVersion, nav, platform, update, beta, pane, peek }) => {
   document.body.classList.toggle('peek', !!peek)
   if (peek) {
     Object.assign($('peek').style, { left: peek.x + 'px', top: peek.y + 'px', width: peek.width + 'px', height: peek.height + 'px' })
@@ -251,6 +264,7 @@ camber.onState(({ state, sidebarOpen, offerArc, tabId, extensionsVersion, nav, p
   $('update').hidden = !update
   if (update) $('update').querySelector('a').textContent = update.ready ? `camber ${update.version} is ready, restart to update` : `camber ${update.version} is out`
   $('update').querySelector('.restart').hidden = !update?.ready
+  $('beta').hidden = !beta
   document.body.classList.toggle('mac', platform === 'darwin')
   current = state
   const s = state.spaces[state.active]
