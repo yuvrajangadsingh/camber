@@ -13,6 +13,8 @@ if (!tag || !from || !out) fail('usage: release.mjs <tag> <artifacts dir> <out d
 
 const { version } = JSON.parse(fs.readFileSync('package.json', 'utf8'))
 if (tag !== 'v' + version) fail(`tag ${tag} does not match package.json version ${version}`)
+// a draft is made as a normal release, and the updater would hand a published 1.0.0-beta.1 to everyone
+if (!/^\d+\.\d+\.\d+$/.test(version)) fail(`${version}: only plain x.y.z versions are released by this job`)
 
 const installers = ['arm64.dmg', 'x64.dmg', 'x64.exe', 'x86_64.AppImage', 'arm64.AppImage', 'amd64.deb', 'arm64.deb'].map((s) => `camber-${version}-${s}`)
 // latest-mac.yml is left out: macOS builds are ad hoc signed and do not update themselves
