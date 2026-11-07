@@ -3,13 +3,16 @@ name: build
 on:
   push:
     branches: [main]
+    # a v* tag builds everything again and drafts a release from it (the release job below)
+    tags: ['v*']
   pull_request:
     branches: [main]
   workflow_dispatch:
 
 concurrency:
   group: build-${{ github.ref }}
-  cancel-in-progress: true
+  # a newer push to a branch replaces its run; a tag's run always finishes
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
 permissions:
   contents: read
@@ -58,6 +61,10 @@ jobs:
             os: macos-15-intel
             build: npx electron-builder --mac dmg --x64 --publish never
             app: dist/mac/camber.app/Contents/MacOS/camber
+          - name: mac-arm64
+            os: macos-15
+            build: npx electron-builder --mac dmg --arm64 --publish never
+            app: dist/mac-arm64/camber.app/Contents/MacOS/camber
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
     steps:
@@ -120,8 +127,8 @@ jobs:
         if: matrix.app
         run: node .github/smoke.mjs ${{ matrix.app }} shot-${{ matrix.name }}.png
 
-      # releases are made by hand from these artifacts: the latest*.yml files go up with the
-      # installers, they are what the auto-updater in Windows and AppImage builds reads
+      # the release job publishes these: the latest*.yml files are what the auto-updater in
+      # Windows and AppImage builds reads, the .exe blockmap lets it fetch only changed blocks
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -134,4 +141,42 @@ jobs:
             dist/*.AppImage
             dist/*.deb
             dist/latest*.yml
+            dist/*.exe.blockmap
             shot-*.png
+
+  # on a v* tag: check the build jobs' files and make a DRAFT release; publishing it stays a
+  # person's click on the releases page
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: camber-*
+          path: artifacts
+      - run: node .github/release.mjs "$GITHUB_REF_NAME" artifacts release/files
+      - name: draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if draft=$(gh release view "$GITHUB_REF_NAME" --json isDraft -q .isDraft 2>/dev/null); then
+            [ "$draft" = true ] || { echo "::error::$GITHUB_REF_NAME is already published, not touching it"; exit 1; }
+            gh release upload "$GITHUB_REF_NAME" release/files/* --clobber
+            gh release edit "$GITHUB_REF_NAME" --notes-file release/notes.md
+          else
+            gh release create "$GITHUB_REF_NAME" --draft --verify-tag --title "camber ${GITHUB_REF_NAME#v}" --notes-file release/notes.md release/files/*
+          fi
+      - name: summary
+        run: |
+          {
+            echo "Draft: https://github.com/$GITHUB_REPOSITORY/releases (publish it there)"
+            echo
+            echo "Homebrew cask (yuvrajangadsingh/homebrew-tap Casks/camber.rb):"
+            echo '```'
+            grep -E 'dmg$' release/files/SHA256SUMS.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
