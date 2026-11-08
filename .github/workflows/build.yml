@@ -3,7 +3,7 @@ name: build
 on:
   push:
     branches: [main]
-    # a v* tag builds everything again and drafts a release from it (the release job below)
+    # a v* tag builds everything again and publishes a release from it (the release job below)
     tags: ['v*']
   pull_request:
     branches: [main]
@@ -144,8 +144,8 @@ jobs:
             dist/*.exe.blockmap
             shot-*.png
 
-  # on a v* tag: check the build jobs' files and make a DRAFT release; publishing it stays a
-  # person's click on the releases page
+  # on a v* tag: check the build jobs' files, upload them to a draft, then publish it, so
+  # the updater feed never points at a release whose files are still uploading
   release:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: build
@@ -159,7 +159,7 @@ jobs:
           pattern: camber-*
           path: artifacts
       - run: node .github/release.mjs "$GITHUB_REF_NAME" artifacts release/files
-      - name: draft release
+      - name: release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -170,13 +170,9 @@ jobs:
           else
             gh release create "$GITHUB_REF_NAME" --draft --verify-tag --title "camber ${GITHUB_REF_NAME#v}" --notes-file release/notes.md release/files/*
           fi
-      - name: summary
-        run: |
-          {
-            echo "Draft: https://github.com/$GITHUB_REPOSITORY/releases (publish it there)"
-            echo
-            echo "Homebrew cask (yuvrajangadsingh/homebrew-tap Casks/camber.rb):"
-            echo '```'
-            grep -E 'dmg$' release/files/SHA256SUMS.txt
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
+          # an older tag finishing after a newer one must not take "latest" back: the updater
+          # feed and the Homebrew tap (which checks hourly) both follow releases/latest
+          # ponytail: two tags publishing in the same seconds could still race; tag one at a time
+          latest=$(gh release view --json tagName -q .tagName 2>/dev/null || true)
+          newest=$(printf '%s\n' "$latest" "$GITHUB_REF_NAME" | sort -V | tail -1)
+          gh release edit "$GITHUB_REF_NAME" --draft=false --latest=$([ "$newest" = "$GITHUB_REF_NAME" ] && echo true || echo false)
