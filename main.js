@@ -642,6 +642,10 @@ const commands = {
   newSpace,
   closeTab: (id) => closeTab(id),
   importArc: () => importArc(), // never a renderer-supplied path
+  // Windows and Linux have no menu bar (titleBarStyle hidden): the sidebar's menu button opens it.
+  // Focus goes back to the page first, so Edit and DevTools act on it and not on the sidebar.
+  // ponytail: opens at the pointer, also when the button is pressed from the keyboard
+  appMenu() { target()?.focus(); Menu.getApplicationMenu()?.popup({ window: win }) },
   closePalette,
   openPalette: (mode) => openPalette(['edit', 'split'].includes(mode) ? mode : 'new'),
   split(id) { closePalette(); splitWith(id) },

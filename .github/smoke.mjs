@@ -45,6 +45,7 @@ const seen = await evaluate(`({
   platform: navigator.userAgent,
   spaces: (typeof current === 'undefined' ? [] : current.spaces).map((s) => s.name),
   favorites: document.querySelectorAll('#favs .fav').length,
+  menuButton: getComputedStyle(document.getElementById('nav-menu')).display !== 'none',
   sidebar: document.getElementById('tabs').innerText.replace(/\\n/g, ' | '),
 })`)
 console.log(JSON.stringify(seen, null, 2))
@@ -56,4 +57,6 @@ console.log('saved', out)
 ws.close()
 app.kill()
 if (!seen?.spaces?.length) fail('sidebar has no spaces')
+// the menus are only reachable through this button off macOS
+if (seen.menuButton !== (process.platform !== 'darwin')) fail(`menu button shown: ${seen.menuButton} on ${process.platform}`)
 process.exit(0)

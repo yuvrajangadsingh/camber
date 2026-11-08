@@ -33,6 +33,7 @@
   #drag button { -webkit-app-region: no-drag; width: 28px; height: 28px; border: 0; border-radius: 7px; background: transparent; color: var(--text); opacity: .72; display: grid; place-items: center; padding: 0; }
   #drag button:hover:not(:disabled) { background: var(--hover); opacity: 1; }
   #drag button:disabled { opacity: .28; }
+  body.mac #nav-menu { display: none; } /* macOS has the menu bar */
   #drag svg, #pill svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
   #pill { display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 10px; border-radius: 10px; background: var(--pill); color: var(--muted); white-space: nowrap; overflow: hidden; font-size: 13px; }
   #pill svg { width: 13px; height: 13px; flex: none; stroke-width: 1.8; }
@@ -125,6 +126,7 @@
 <div id="titlebar"></div>
 <div id="sidebar">
   <div id="drag">
+    <button id="nav-menu" title="Menu"><svg viewBox="0 0 20 20"><path d="M4 6h12M4 10h12M4 14h12"/></svg></button>
     <button id="nav-sidebar" title="Toggle sidebar (⌘S)"><svg viewBox="0 0 20 20"><rect x="2.5" y="3.5" width="15" height="13" rx="3"/><path d="M7.5 3.5v13"/></svg></button>
     <button id="nav-back" title="Back (⌘[)"><svg viewBox="0 0 20 20"><path d="M12 4.5 6.5 10l5.5 5.5"/></svg></button>
     <button id="nav-forward" title="Forward (⌘])"><svg viewBox="0 0 20 20"><path d="M8 4.5l5.5 5.5L8 15.5"/></svg></button>
@@ -249,7 +251,7 @@ $('space-name').ondblclick = () => {
   input.focus()
   input.select()
 }
-for (const [id, cmd] of [['nav-sidebar', 'toggleSidebar'], ['nav-back', 'back'], ['nav-forward', 'forward'], ['nav-reload', 'reload']]) $(id).onclick = () => camber.send(cmd)
+for (const [id, cmd] of [['nav-menu', 'appMenu'], ['nav-sidebar', 'toggleSidebar'], ['nav-back', 'back'], ['nav-forward', 'forward'], ['nav-reload', 'reload']]) $(id).onclick = () => camber.send(cmd)
 const ICONS = { reload: '<path d="M15.5 10a5.5 5.5 0 1 1-1.6-3.9"/><path d="M15.5 3.5v3.2h-3.2"/>', stop: '<path d="M5.5 5.5l9 9M14.5 5.5l-9 9"/>' }
 
 let actionsKey

@@ -140,7 +140,8 @@ apart. Spaces can share a profile, like in Arc.
 
 File > Import from Arc reads Arc's sidebar file where Arc keeps it on macOS and
 on Windows. On Linux, or to bring a file from another machine, copy
-`StorableSidebar.json` over and use File > Import Arc File….
+`StorableSidebar.json` over and use File > Import Arc File…. On Windows and Linux
+the menus (File, Tab, Help) open from the ≡ button at the top left of the sidebar.
 
 What comes over:
 
