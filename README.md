@@ -165,6 +165,34 @@ State lives in `state.json` in the app's user data folder.
 Extensions: install from the Chrome Web Store (File > Chrome Web Store), and their
 buttons show up in the sidebar.
 
+Passwords: sign in to a site and camber asks whether to save the password (Save, Not
+Now, Never for This Site). It asks once the sign-in went through, so a wrong password
+isn't offered. Next time the form comes up filled in. With more than one login for a
+site the last used one goes in, and typing another saved username brings its password.
+File > Passwords lists them with Copy Password and Delete, and has the switch to stop
+asking.
+
+They are sealed with the system keychain (Keychain on macOS, DPAPI on Windows, GNOME
+Keyring or KWallet on Linux) and kept in `passwords.json` in the user data folder; the
+site addresses and usernames in that file are not sealed. Nothing is sent anywhere and
+nothing syncs. Only https pages and local http count, and a site only gets the logins
+saved for that exact address. Anyone at your unlocked computer can copy a password
+from the menu. On Linux without a keyring nothing is saved.
+
+camber works out by itself whether a sign-in was sent and whether it went through, and
+it can miss one: a form inside an embedded frame or a web component (shadow DOM), a
+sign-in sent over a WebSocket, or one that waits behind a spinner for more than a few
+seconds (a puzzle to solve) is not offered. It never saves without asking.
+
+On macOS the builds are unsigned, so macOS treats every camber update as a new app.
+After an update, the first time camber needs a saved password macOS should ask for
+your login password before camber may read its own keychain entry (choose Always
+Allow). I have not sat through that prompt yet: in my test a second build could not
+save anything until it was allowed.
+
+Tried on macOS (Apple Silicon), from source and in a packaged build. On Windows and
+Linux the save and fill have not been run yet.
+
 Tabs you haven't looked at for an hour give their memory back and stay in the
 sidebar; clicking one loads it again (Tab > Unload After: 30m, 1h, 3h, Off). The tab
 on screen, both halves of a split, tabs playing sound and tabs with a
@@ -181,6 +209,8 @@ this is what the sidebar costs with its tabs asleep.
 
 - 1Password doesn't work yet. Bitwarden installs and opens; autofill with a
   logged-in vault is untested.
+- Saved passwords: no import from Arc, Chrome or a CSV file, no password generator,
+  and no search in the list.
 - No code signing, no Windows arm64 build. Updates install themselves only on Windows
   and the AppImage (from the next release on); macOS and the .deb get a note in the sidebar.
 - No Widevine: Netflix, Prime Video, Disney+ and Spotify web do not play (stock
