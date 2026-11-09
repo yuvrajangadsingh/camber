@@ -1,4 +1,4 @@
-const { app, BaseWindow, WebContentsView, Menu, dialog, ipcMain, session, nativeTheme, net, shell, safeStorage, webContents } = require('electron')
+const { app, BaseWindow, WebContentsView, Menu, dialog, ipcMain, session, nativeTheme, net, shell, safeStorage, clipboard, webContents } = require('electron')
 const { ElectronChromeExtensions } = require('electron-chrome-extensions')
 const { installChromeWebStore } = require('electron-chrome-web-store')
 const fs = require('node:fs')
@@ -704,6 +704,7 @@ function menu() {
         item('Import from Arc…', undefined, () => importArc()),
         item('Import Arc File…', undefined, pickArcFile),
         item('Chrome Web Store', undefined, () => newTab('https://chromewebstore.google.com/')),
+        { label: 'Passwords', submenu: passwordMenu() },
         { type: 'separator' },
         item('Make camber the Default Browser', undefined, makeDefault),
       ],
@@ -837,12 +838,41 @@ function saveVault() {
   } catch (e) {
     dialog.showErrorBox('Passwords', `Could not write ${vaultPath()}, so this change is lost when camber quits.\n\n${e.message}`)
   }
+  menu() // File > Passwords lists them
   // open pages keep their site's logins (page-preload.js) and ask for them again
   for (const wc of webContents.getAllWebContents()) wc.send('logins-changed')
 }
 
 // how a site is named to the user: the host, with http:// kept so a local http site can't pass for the https one
 const siteName = (origin) => origin.replace(/^https:\/\//, '')
+
+// File > Passwords: every saved login with Copy and Delete, the sites told Never, and the switch for asking.
+// ponytail: a plain menu, no search and no system password before a copy; a window of its own when the list gets long
+function passwordMenu() {
+  const forget = (list, x) => () => { vault[list] = vault[list].filter((y) => y !== x); saveVault() }
+  return [
+    ...[...vault.logins].sort((a, b) => siteName(a.origin).localeCompare(siteName(b.origin))).map((l) => ({
+      label: `${siteName(l.origin)}: ${l.username || 'no username'}`,
+      submenu: [
+        {
+          label: 'Copy Password',
+          async click() {
+            const password = await unseal(l.secret)
+            if (password === null) dialog.showErrorBox('Passwords', 'The system keychain did not give this password back.')
+            else clipboard.writeText(password)
+          },
+        },
+        { label: 'Delete', click: forget('logins', l) },
+      ],
+    })),
+    ...vault.never.map((o) => ({ label: `${siteName(o)}: never saved`, submenu: [{ label: 'Offer to Save Again', click: forget('never', o) }] })),
+    ...(vault.logins.length + vault.never.length ? [{ type: 'separator' }] : []),
+    // read off the configuration only: asking the keyring itself here would be a keyring prompt at launch
+    LINUX && ['basic_text', 'unknown'].includes(safeStorage.getSelectedStorageBackend())
+      ? { label: 'Saving passwords needs a system keyring', enabled: false }
+      : { label: 'Offer to Save Passwords', type: 'checkbox', checked: state.savePasswords ?? true, click: (m) => { state.savePasswords = m.checked; render() } },
+  ]
+}
 
 const typedName = new WeakMap() // page -> { origin, username } from a sign-in that asks for the name on a page of its own
 const typedLogin = new WeakMap() // page -> the login waiting to see whether its sign-in worked; a newer one replaces it
