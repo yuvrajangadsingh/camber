@@ -1,4 +1,4 @@
-const { app, BaseWindow, WebContentsView, Menu, dialog, ipcMain, session, nativeTheme, net, shell } = require('electron')
+const { app, BaseWindow, WebContentsView, Menu, dialog, ipcMain, session, nativeTheme, net, shell, safeStorage, webContents } = require('electron')
 const { ElectronChromeExtensions } = require('electron-chrome-extensions')
 const { installChromeWebStore } = require('electron-chrome-web-store')
 const fs = require('node:fs')
@@ -8,6 +8,7 @@ const arc = require('./arc')
 const tabs = require('./tabs')
 const { nodes, detach } = tabs
 const updates = require('./update')
+const passwords = require('./passwords')
 
 const SIDEBAR = 248
 const GAP = 8
@@ -242,7 +243,9 @@ const POP = `(async () => {
   } catch (e) { console.warn('camber pip:', e.message) }
 })()`
 const UNPOP = `document.pictureInPictureElement && document.exitPictureInPicture().catch((e) => console.warn('camber pip:', e.message))`
-const run = (wc, code, gesture) => wc.executeJavaScriptInIsolatedWorld(WORLD, [{ code }], gesture)
+const run = (wc, code, gesture, world = WORLD) => wc.executeJavaScriptInIsolatedWorld(world, [{ code }], gesture)
+// a page's answer to `code`, or true when it doesn't answer within a second (still loading, hung)
+const asked = (wc, code, world) => Promise.race([run(wc, code, false, world), new Promise((r) => setTimeout(r, 1000, true))]).catch(() => true)
 // one request at a time per page: coming back waits for a pop-out still in flight, then undoes it.
 // Coming back undoes a pop-out even with the setting off, so turning it off never leaves one stuck,
 // and a pop-out still waiting when the setting goes off doesn't happen.
@@ -312,12 +315,15 @@ function extensionsFor(profile) {
   return ext
 }
 
+// a view for a web page: each space's profile is its own cookie jar, like Arc's profile-per-space,
+// and page-preload.js saves and fills passwords
+const pageView = (profile) => new WebContentsView({ webPreferences: { partition: 'persist:' + profile, preload: path.join(__dirname, 'page-preload.js') } })
+
 // `adopt` is an already loaded view (a peek) that becomes this tab's page as it is
 function viewFor(t, adopt) {
   if (views.has(t.id)) return views.get(t.id)
-  // each space's profile is its own cookie jar, like Arc's profile-per-space
   const { profile } = find(t.id).s
-  const v = adopt || new WebContentsView({ webPreferences: { partition: 'persist:' + profile } })
+  const v = adopt || pageView(profile)
   v.setBorderRadius(10)
   const wc = v.webContents
   wc.on('page-title-updated', (_, title) => { t.title = title; render() })
@@ -441,8 +447,7 @@ async function unload(minutes) {
   // hung) is kept. Sound and the peek can change meanwhile, so they are read after the wait.
   // Only the page's own document is asked: a muted video popped out of an iframe isn't seen.
   const pips = await Promise.all([...views].map(([id, v]) =>
-    Promise.race([run(v.webContents, '!!document.pictureInPictureElement', false), new Promise((r) => setTimeout(r, 1000, true))])
-      .catch(() => true).then((on) => on && id)))
+    asked(v.webContents, '!!document.pictureInPictureElement').then((on) => on && id)))
   const keep = [peek?.source, ...pips, ...[...views].filter(([, v]) => v.webContents.isCurrentlyAudible()).map(([id]) => id)]
   const loaded = [...views.keys()].map((id) => find(id)?.t).filter(Boolean)
   const gone = tabs.idle(state, loaded, Date.now(), minutes, keep)
@@ -465,7 +470,7 @@ const BAR = 38
 function little(url) {
   const w = new BaseWindow({ width: 900, height: 640, center: true, ...(MAC ? { titleBarStyle: 'hiddenInset', trafficLightPosition: { x: 12, y: 12 } } : { autoHideMenuBar: true }) })
   const bar = new WebContentsView({ webPreferences: { preload: path.join(__dirname, 'preload.js'), sandbox: false } })
-  const page = new WebContentsView({ webPreferences: { partition: 'persist:' + space().profile } })
+  const page = pageView(space().profile)
   w.contentView.addChildView(page)
   w.contentView.addChildView(bar)
   const fit = () => {
@@ -579,7 +584,7 @@ const fitPeek = () => {
 async function openPeek(id) {
   const t = find(id)?.t
   if (!t || peek || paletteOpen || !allowed(t.url)) return
-  const p = peek = { view: new WebContentsView({ webPreferences: { partition: 'persist:' + space().profile } }), url: t.url, source: id }
+  const p = peek = { view: pageView(space().profile), url: t.url, source: id }
   const snap = await backdrop()
   if (peek !== p) return
   p.view.setBorderRadius(10)
@@ -792,9 +797,138 @@ function guardPermissions(ses) {
 const askPermission = tabs.asker()
 const askers = new Map() // question key -> the pages waiting on it, so a closed one does not answer for the rest
 
+// Saved passwords. page-preload.js, in each page's top frame, says what was typed into a sign-in form
+// and asks for the site's saved logins; the site is read off the frame, never taken from the message.
+// The passwords are sealed with the OS keychain (safeStorage) and kept out of state.json, which goes to
+// the sidebar whole. The keychain is touched only to save a password or to read the ones of the site
+// on screen: on an unsigned Mac build macOS asks for the login password again after every update, and
+// that must not happen at every launch.
+let vault = { logins: [], never: [] }
+const vaultPath = () => path.join(app.getPath('userData'), 'passwords.json')
+// Linux: the sync calls, which refuse to work without a real keyring key (the async ones can fall back
+// to a fixed key there, which protects nothing). Elsewhere the async ones, so a keychain prompt doesn't
+// freeze the browser while it waits for an answer.
+const LINUX = process.platform === 'linux'
+const canSeal = () => !LINUX || safeStorage.isEncryptionAvailable()
+const seal = async (text) => (LINUX ? safeStorage.encryptString(text) : await safeStorage.encryptStringAsync(text)).toString('base64')
+async function unseal(secret) {
+  try {
+    const sealed = Buffer.from(secret, 'base64')
+    return LINUX ? safeStorage.decryptString(sealed) : (await safeStorage.decryptStringAsync(sealed)).result
+  } catch {
+    return null
+  }
+}
+function loadVault() {
+  try {
+    const v = JSON.parse(fs.readFileSync(vaultPath(), 'utf8'))
+    const whole = (l) => passwords.site(l?.origin) && typeof l.username === 'string' && typeof l.secret === 'string'
+    vault = { logins: (v.logins || []).filter(whole), never: (v.never || []).filter(passwords.site) }
+  } catch (e) {
+    // kept for the user, like state.json. A file that can't even be moved must not stop camber from starting
+    if (e.code !== 'ENOENT') try { fs.renameSync(vaultPath(), vaultPath() + '.bad') } catch {}
+  }
+}
+function saveVault() {
+  try {
+    const tmp = vaultPath() + '.tmp'
+    fs.writeFileSync(tmp, JSON.stringify(vault, null, 2), { mode: 0o600 })
+    fs.renameSync(tmp, vaultPath())
+  } catch (e) {
+    dialog.showErrorBox('Passwords', `Could not write ${vaultPath()}, so this change is lost when camber quits.\n\n${e.message}`)
+  }
+  // open pages keep their site's logins (page-preload.js) and ask for them again
+  for (const wc of webContents.getAllWebContents()) wc.send('logins-changed')
+}
+
+// how a site is named to the user: the host, with http:// kept so a local http site can't pass for the https one
+const siteName = (origin) => origin.replace(/^https:\/\//, '')
+
+const typedName = new WeakMap() // page -> { origin, username } from a sign-in that asks for the name on a page of its own
+const typedLogin = new WeakMap() // page -> the login waiting to see whether its sign-in worked; a newer one replaces it
+let questions = 0
+// Electron runs preload scripts in world 999 (context isolation). page-preload.js answers there, because
+// only it knows a box that a "show password" button turned into a text box
+const PRELOAD_WORLD = 999
+// a sign-in that failed leaves its password box on the page; one that worked takes it away or moves on.
+// ponytail: looks for ten seconds, so a site that still shows a password box after signing in is never offered
+async function signedIn(wc, login) {
+  for (let i = 0; i < 10; i++) {
+    await new Promise((r) => setTimeout(r, 1000))
+    if (typedLogin.get(wc) !== login || wc.isDestroyed()) return false // typed again since, or the page was closed
+    if (!wc.isLoading() && !await asked(wc, 'camberBoxShown()', PRELOAD_WORLD)) return true
+  }
+  return false
+}
+
+ipcMain.on('login-typed', async (e, m) => {
+  const wc = e.sender, origin = passwords.site(e.senderFrame?.origin)
+  if (!origin || e.senderFrame.parent) return
+  const text = (v) => typeof v === 'string' && v.length <= 1000 ? v : ''
+  let username = text(m?.username)
+  const password = text(m?.password)
+  if (!password) return void (username && typedName.set(wc, { origin, username }))
+  // no name on the password's page: the one typed a page earlier, else the site's only saved login
+  const saved = passwords.forSite(vault, origin)
+  if (!username) username = typedName.get(wc)?.origin === origin ? typedName.get(wc).username : saved.length === 1 ? saved[0].username : ''
+  typedName.delete(wc)
+  // set before anything is awaited: whatever is typed on the page next replaces this one, so an older
+  // password (a wrong one, say) can't be offered or saved after a newer one
+  const login = { origin, username, password }
+  typedLogin.set(wc, login)
+  const waiting = () => typedLogin.get(wc) === login
+  try {
+    const old = passwords.match(vault, origin, username)
+    if (old && await unseal(old.secret) === password) {
+      // signed in with the saved one. "Last used" is kept to the minute, so a page can't make this write in a loop
+      if (Date.now() - old.used > 60000) { old.used = Date.now(); saveVault() }
+      return
+    }
+    if (!waiting() || state.savePasswords === false || vault.never.includes(origin) || !canSeal()) return
+    if (!await signedIn(wc, login)) return
+    // every question is its own (the numbered key): one answer never covers a second password
+    const answer = await askPermission(`login ${++questions}`, async () => {
+      // also when Never or the switch was chosen in a question answered before this one
+      if (!waiting() || wc.isDestroyed() || vault.never.includes(origin) || state.savePasswords === false) return 1
+      const update = passwords.match(vault, origin, username)
+      return (await dialog.showMessageBox(ownerOf(wc), {
+        message: `${update ? 'Update the saved password' : 'Save the password'} for ${siteName(origin)}?`,
+        detail: username.replace(/\s+/g, ' ').slice(0, 80) || 'No username', // page text: one short line, so it can't pose as the question
+        buttons: update ? ['Update', 'Not Now'] : ['Save', 'Not Now', 'Never for This Site'], defaultId: 0, cancelId: 1,
+      })).response
+    })
+    if (!waiting()) return
+    if (answer === 2) vault.never.push(origin)
+    else if (answer !== 0) return
+    else {
+      let secret
+      try {
+        secret = await seal(password)
+      } catch (err) {
+        return dialog.showErrorBox('Passwords', `The system keychain refused, so the password for ${siteName(origin)} was not saved.\n\n${err.message}`)
+      }
+      if (!waiting()) return
+      passwords.put(vault, origin, username, secret, Date.now())
+    }
+    saveVault()
+  } finally {
+    if (waiting()) typedLogin.delete(wc)
+  }
+})
+
+// the site's logins for the fill, and the name typed a page earlier for a form that has no name box
+ipcMain.handle('logins', async (e) => {
+  const origin = passwords.site(e.senderFrame?.origin)
+  if (!origin || e.senderFrame.parent) return { typed: '', logins: [] }
+  const name = typedName.get(e.sender)
+  const logins = await Promise.all(passwords.forSite(vault, origin).map(async (l) => ({ username: l.username, password: await unseal(l.secret) })))
+  return { typed: name?.origin === origin ? name.username : '', logins: logins.filter((l) => l.password !== null) }
+})
+
 app.whenReady().then(() => {
   if (!solo) return
   load()
+  loadVault()
   // the tab that was on screen at quit counts as just used, then the overnight backlog goes
   const shown = find(space().activeId)
   if (shown) shown.t.lastActive = Date.now()

@@ -38,6 +38,8 @@
       "arc.js",
       "tabs.js",
       "update.js",
+      "passwords.js",
+      "page-preload.js",
       "demo/**",
       "package.json"
     ],
