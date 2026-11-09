@@ -3,6 +3,31 @@
 Newest first. Installers and the full notes are on the
 [releases page](https://github.com/yuvrajangadsingh/camber/releases).
 
+## 0.4.0 (2026-11-09)
+
+camber saves your passwords and fills them in.
+
+- Sign in to a site and camber asks whether to save the password: Save, Not Now or
+  Never for This Site. It asks once the sign-in went through, so a wrong password
+  isn't offered. Next time the form comes up filled in, and a changed password is
+  offered as an update.
+- More than one login for a site: the last used one is filled, and typing another
+  saved username brings its password.
+- File > Passwords lists the saved logins with Copy Password and Delete, and has the
+  switch to stop asking.
+- Passwords are sealed with the system keychain and stay in `passwords.json` on your
+  computer. Only https pages and local http count, and a site only gets its own logins.
+- macOS: the builds are unsigned, so after each camber update macOS should ask for
+  your login password before camber can read its keychain entry again. Linux: needs
+  GNOME Keyring or KWallet; without one nothing is saved.
+- A sign-in form in an embedded frame or a web component, or one sent over a
+  WebSocket, is not seen. camber never saves without asking.
+- Tried on macOS (Apple Silicon). On Windows and Linux the save and fill have not
+  been run yet, beyond the app starting in CI.
+
+Known gaps: nothing is signed; no Widevine; 1Password doesn't work yet; no password
+import; no Windows arm64 build, no sync, Boosts or Live Folders.
+
 ## 0.3.2 (2026-11-09)
 
 Windows and Linux get their menus.
