@@ -17,7 +17,7 @@
   "license": "GPL-3.0-only",
   "type": "commonjs",
   "devDependencies": {
-    "electron": "^45.3.0",
+    "electron": "github:castlabs/electron-releases#v45.2.1+wvcus",
     "electron-builder": "^26.18.0"
   },
   "private": true,
@@ -96,6 +96,9 @@
         "libsecret-1-0",
         "libasound2t64 | libasound2"
       ]
+    },
+    "electronDownload": {
+      "mirror": "https://github.com/castlabs/electron-releases/releases/download/"
     }
   }
 }

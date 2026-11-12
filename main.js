@@ -1,4 +1,4 @@
-const { app, BaseWindow, WebContentsView, Menu, dialog, ipcMain, session, nativeTheme, net, shell, safeStorage, clipboard, webContents } = require('electron')
+const { app, BaseWindow, WebContentsView, Menu, dialog, ipcMain, session, nativeTheme, net, shell, safeStorage, clipboard, webContents, components } = require('electron')
 const { ElectronChromeExtensions } = require('electron-chrome-extensions')
 const { installChromeWebStore } = require('electron-chrome-web-store')
 const fs = require('node:fs')
@@ -956,8 +956,14 @@ ipcMain.handle('logins', async (e) => {
   return { typed: name?.origin === origin ? name.username : '', logins: logins.filter((l) => l.password !== null) }
 })
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   if (!solo) return
+  // castLabs Electron installs or updates the Widevine CDM (Netflix, Spotify) here; a first run with no network
+  // must still open, so wait at most 10 s and let playback work from the next launch
+  await Promise.race([
+    components.whenReady().catch((e) => console.warn('camber widevine:', e?.message)),
+    new Promise((r) => setTimeout(r, 10000)),
+  ])
   load()
   loadVault()
   // the tab that was on screen at quit counts as just used, then the overnight backlog goes
