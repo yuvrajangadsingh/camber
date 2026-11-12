@@ -99,6 +99,8 @@
     },
     "electronDownload": {
       "mirror": "https://github.com/castlabs/electron-releases/releases/download/"
-    }
+    },
+    "afterPack": ".github/vmp.cjs",
+    "afterSign": ".github/vmp-win.cjs"
   }
 }

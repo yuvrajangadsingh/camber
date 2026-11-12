@@ -81,6 +81,13 @@ jobs:
           path: .cache
           key: electron-${{ matrix.name }}-${{ hashFiles('package-lock.json') }}
       - run: npm ci
+      # castLabs EVS client for the Widevine signature (.github/vmp.cjs); Linux has no VMP
+      - uses: actions/setup-python@v5
+        if: runner.os != 'Linux'
+        with:
+          python-version: '3.12'
+      - run: python -m pip install castlabs-evs
+        if: runner.os != 'Linux'
       # Mac: package.json signs ad hoc ("identity": "-") and electron-builder notarizes only when the
       # APPLE_* variables are set, so without the secrets this is the unsigned build it always was.
       # When the Developer ID certificate exists: add APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID
@@ -94,6 +101,8 @@ jobs:
           APPLE_ID: ${{ matrix.app && secrets.APPLE_ID || '' }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ matrix.app && secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
           APPLE_TEAM_ID: ${{ matrix.app && secrets.APPLE_TEAM_ID || '' }}
+          EVS_ACCOUNT_NAME: ${{ secrets.EVS_ACCOUNT_NAME }}
+          EVS_PASSWD: ${{ secrets.EVS_PASSWD }}
 
       # Linux: install the .deb like a user would, then run it on a virtual display
       - name: smoke test (linux)
