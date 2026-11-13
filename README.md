@@ -85,6 +85,7 @@ Cmd on macOS, Ctrl on Linux and Windows.
 | Cmd+T | command bar: URL, DuckDuckGo search, or jump to an open tab |
 | Cmd+L | edit the current tab's URL |
 | Cmd+W | close tab (pinned tabs just unload) |
+| Cmd+Shift+T | reopen the last closed or archived tab |
 | Cmd+D | pin or unpin |
 | Cmd+R, Cmd+[, Cmd+] | reload, back, forward |
 | Cmd+S | toggle sidebar |
@@ -97,7 +98,9 @@ Drag tabs to reorder them; dropping a tab among the pinned ones pins it, and
 dropping a pinned tab under New Tab unpins it. Double-click a space's name, a tab or a
 folder to rename it. Closing a tab takes you back to the tab you were on before it.
 Unpinned tabs you haven't opened for 12 hours are closed (Tab > Archive After:
-12h, 24h or Off).
+12h, 24h or Off). Tab > Archived Tabs… lists the ones closed or archived in this
+space, newest first; type to search, Enter reopens. Tab > Clear Archived Tabs
+empties the list.
 
 Tab > Split with… (or "split" in the command bar) puts another tab of the space
 next to the current one; click a side to make it active. Shift+click a favorite,

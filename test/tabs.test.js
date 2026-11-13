@@ -1,6 +1,6 @@
 const test = require('node:test')
 const assert = require('node:assert')
-const { touch, forget, afterClose, move, rename, prune, idle, web, loadable, navigable, permKeys, permission, checked, permOrigin, asker, pairOk, route: tabsRoute } = require('../tabs')
+const { touch, forget, afterClose, move, rename, archive, unarchive, prune, idle, web, loadable, navigable, permKeys, permission, checked, permOrigin, asker, pairOk, route: tabsRoute } = require('../tabs')
 
 test('closing a tab goes back to the one used before it', () => {
   let mru = []
@@ -96,6 +96,34 @@ test('tabs and folders take a name of their own, and an empty one gives a tab it
   assert.strictEqual(s.pinned[0].title, 'Side')
   assert.ok(!rename(s, 'zzz', 'New'))
   assert.ok(!rename(s, 'a', { toString: null }))
+})
+
+test('closed and archived tabs can be reopened, newest first, from their own space', () => {
+  const state = {}
+  const s1 = { id: 's1' }, s2 = { id: 's2' }
+  archive(state, s1, { id: 'a', url: 'https://a.example', title: 'A' }, 1)
+  archive(state, s1, { id: 'b', url: 'https://b.example', title: 'B', name: 'Bee' }, 2)
+  archive(state, s2, { id: 'c', url: 'https://a.example', title: 'A' }, 3)
+  archive(state, s1, { id: 'd', url: 'about:blank', title: '' }, 4)
+  archive(state, s1, { id: 'e', url: 'file:///etc/hosts' }, 5)
+  assert.deepStrictEqual(state.archived.map((e) => e.id), ['c', 'b', 'a'])
+  assert.strictEqual(state.archived[1].name, 'Bee')
+  // the same page closed again in its space keeps one entry, the newest
+  archive(state, s1, { id: 'a2', url: 'https://a.example', title: 'A' }, 6)
+  assert.deepStrictEqual(state.archived.map((e) => e.id), ['a2', 'c', 'b'])
+  // Cmd+Shift+T takes the space's newest; a picked one comes off by id, never from another space
+  assert.strictEqual(unarchive(state, 's1').id, 'a2')
+  assert.strictEqual(unarchive(state, 's1', 'c'), undefined)
+  assert.strictEqual(unarchive(state, 's2', 'c').id, 'c')
+  assert.deepStrictEqual(state.archived.map((e) => e.id), ['b'])
+  assert.strictEqual(unarchive({}, 's1'), undefined)
+  for (let i = 0; i < 150; i++) archive(state, s1, { id: 'x' + i, url: 'https://x.example/' + i }, 10 + i)
+  assert.strictEqual(state.archived.length, 100)
+  assert.strictEqual(state.archived[0].id, 'x149')
+  // tabs archived for age land on the list too
+  const st = { active: 0, spaces: [{ id: 's1', activeId: null, pinned: [], today: [{ id: 'old', url: 'https://old.example', title: 'Old', lastActive: 0 }] }] }
+  assert.deepStrictEqual(prune(st, 13 * 3600000, 12), ['old'])
+  assert.strictEqual(st.archived[0].url, 'https://old.example')
 })
 
 test('archives today tabs that sat unused past the limit', () => {

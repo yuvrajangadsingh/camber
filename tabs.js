@@ -74,6 +74,22 @@ function afterClose(closed, mru, ids, today, loaded) {
   return (mru || []).find(ok) || today.find(ok) || loaded.find(ok) || ids.find(ok)
 }
 
+// a tab that left its space for good (closed, or archived for age) goes on top of state.archived, where
+// Reopen Closed Tab and Archived Tabs find it. One entry per page and space, 100 at most so state.json stays
+// small; blank and non-web pages aren't kept.
+function archive(state, s, t, now) {
+  if (!web(t?.url) || t.url === 'about:blank') return
+  const e = { id: t.id, url: t.url, title: t.title, spaceId: s.id, at: now, ...(t.name && { name: t.name }) }
+  state.archived = [e, ...(state.archived || []).filter((x) => x.url !== e.url || x.spaceId !== s.id)].slice(0, 100)
+}
+
+// takes entry `id` of space `spaceId` off the archive list and returns it; with no id, the space's newest
+function unarchive(state, spaceId, id) {
+  const list = state.archived || []
+  const i = list.findIndex((e) => e.spaceId === spaceId && (id === undefined || e.id === id))
+  return i < 0 ? undefined : list.splice(i, 1)[0]
+}
+
 // closes today tabs not activated for `hours` (0 = never) and returns their ids. The tabs on
 // screen (the active one, and both panes of its split) are kept however old they are; a tab with no lastActive yet (state from an older camber,
 // a fresh import) starts its clock now instead of going at once.
@@ -87,7 +103,7 @@ function prune(state, now, hours) {
     s.today = s.today.filter((t) => {
       t.lastActive ??= now
       const keep = shown.includes(t.id) || now - t.lastActive < hours * 3600000
-      if (!keep) out.push(t.id)
+      if (!keep) { out.push(t.id); archive(state, s, t, now) }
       return keep
     })
     forget(s, out)
@@ -184,4 +200,4 @@ function route(routes, url, spaceIds) {
 // today and favorites); a restored one that points elsewhere is dropped
 const pairOk = (split, ids) => Array.isArray(split) && split.length === 2 && split[0] !== split[1] && split.every((id) => ids.includes(id))
 
-module.exports = { nodes, detach, move, rename, touch, forget, afterClose, prune, idle, web, loadable, navigable, permKeys, permission, checked, permOrigin, asker, covers, route, pairOk }
+module.exports = { nodes, detach, move, rename, touch, forget, afterClose, archive, unarchive, prune, idle, web, loadable, navigable, permKeys, permission, checked, permOrigin, asker, covers, route, pairOk }

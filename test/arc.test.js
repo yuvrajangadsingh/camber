@@ -62,8 +62,10 @@ test('re-importing over an older import moves its routing rules to the new space
   // what an older camber left: random ids on the imported spaces
   state.spaces[1].id = 'rnd1'
   state.routes = [{ host: 'a.com', spaceId: 'rnd1' }, { host: 'b.com', spaceId: 'mine' }, { host: 'c.com', spaceId: 'deleted' }]
+  state.archived = [{ id: 'x', url: 'https://x.example', spaceId: 'rnd1' }, { id: 'y', url: 'https://y.example', spaceId: 'deleted' }]
   merge(state, convert(fixture, uid))
   assert.deepStrictEqual(state.routes, [{ host: 'a.com', spaceId: 'arc-' + state.spaces[1].arcId }, { host: 'b.com', spaceId: 'mine' }])
+  assert.deepStrictEqual(state.archived, [{ id: 'x', url: 'https://x.example', spaceId: 'arc-' + state.spaces[1].arcId }])
   assert.strictEqual(state.spaces[1].id, 'arc-' + state.spaces[1].arcId)
 })
 

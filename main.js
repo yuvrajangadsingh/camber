@@ -96,9 +96,9 @@ function openLink(url) {
   if (i < 0) return little(url)
   state.active = i
   newTab(url)
-  if (win.isMinimized()) win.restore()
-  win.focus()
+  front()
 }
+const front = () => { if (win.isMinimized()) win.restore(); win.focus() }
 app.on('open-url', (e, url) => { e.preventDefault(); openLink(url) })
 app.on('second-instance', (_, argv) => linksIn(argv).forEach(openLink))
 
@@ -129,9 +129,9 @@ function importArc(file = arcPath()) {
     return
   }
   state.importedArc = true
-  // a fresh install's single starter space just gets in the way
+  // a fresh install's single starter space just gets in the way (one imported before is kept for merge)
   const [only] = state.spaces
-  if (state.spaces.length === 1 && !only.pinned.length && only.today.length <= 1) {
+  if (state.spaces.length === 1 && !only.arcId && !only.pinned.length && only.today.length <= 1) {
     only.today.forEach((t) => dropView(t.id))
     state.spaces = []
   }
@@ -382,7 +382,7 @@ function closeTab(id = space().activeId) {
   if (!s) return
   const shown = id === s.activeId
   dropView(id)
-  if (s.today.some((t) => t.id === id)) { detach(s, id); tabs.forget(s, [id]) }
+  if (s.today.some((t) => t.id === id)) { tabs.archive(state, s, detach(s, id), Date.now()); tabs.forget(s, [id]) }
   if (!shown) { layout(); return render() } // a split's other pane takes the full width
   closePeek() // it was over the page that just went
   s.activeId = null
@@ -390,6 +390,19 @@ function closeTab(id = space().activeId) {
   const next = tabs.afterClose(id, s.mru, ids, s.today.map((t) => t.id), ids.filter((i) => views.has(i)))
   if (next) select(next)
   else { layout(); render() }
+}
+
+// Reopen Closed Tab (Cmd+Shift+T) brings back the space's newest archived tab, Archived Tabs… a picked one,
+// at the top of today with its name
+function reopen(id) {
+  const e = tabs.unarchive(state, space().id, id)
+  if (!e) return
+  front()
+  closePalette()
+  closePeek()
+  newTab(e.url)
+  Object.assign(space().today[0], { title: e.title }, e.name && { name: e.name })
+  render()
 }
 
 // Cmd+D and drag both go through tabs.move; favorites stay favorites
@@ -561,6 +574,7 @@ async function openPalette(mode) {
   if (paletteOpen || peek) return
   paletteOpen = true
   const snap = await backdrop()
+  if (!paletteOpen) return // closed meanwhile (Cmd+Shift+T)
   win.contentView.addChildView(ui) // re-adding moves it to the top
   const t = find(space().activeId)?.t
   ui.webContents.send('palette', { mode, url: mode === 'edit' ? t?.url || '' : '', backdrop: snap })
@@ -632,6 +646,7 @@ function closePalette() {
   paletteOpen = false
   win.contentView.removeChildView(ui)
   win.contentView.addChildView(ui, 0)
+  ui.webContents.send('palette', { mode: 'close' }) // closed from here (a shortcut), the scrim must go too
   current()?.focus()
 }
 
@@ -678,6 +693,7 @@ const commands = {
   dismissBeta() { state.betaDismissed = true; render() },
   // drag and drop in the sidebar; a today tab dropped among the pinned ones is pinned, and back
   moveTab,
+  reopen(id) { closePalette(); if (typeof id === 'string') reopen(id) },
   renameSpace(id, name) {
     const s = state.spaces.find((s) => s.id === id)
     name = String(name).trim().slice(0, 60)
@@ -725,6 +741,9 @@ function menu() {
           littles.get(w).bar.webContents.send('palette')
         }),
         item('Close Tab', 'CmdOrCtrl+W', () => { const w = focusedLittle(); if (w) w.close(); else if (peek) closePeek(); else closeTab() }),
+        item('Reopen Closed Tab', 'CmdOrCtrl+Shift+T', () => reopen()),
+        item('Archived Tabs…', undefined, () => { front(); openPalette('archive') }),
+        item('Clear Archived Tabs', undefined, () => { closePalette(); state.archived = []; render() }),
         item('New Little Window', 'CmdOrCtrl+Shift+N', () => little()),
         item('Open in camber', 'CmdOrCtrl+O', () => { const w = focusedLittle(); if (w) intoCamber(w); else peekToTab() }),
         item('Reload', 'CmdOrCtrl+R', reload),

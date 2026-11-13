@@ -118,6 +118,7 @@
   #palette { position: fixed; top: 20%; left: 50%; transform: translateX(-50%); width: min(620px, calc(100vw - 80px)); background: var(--panel); border-radius: 14px; box-shadow: 0 24px 70px rgba(0,0,0,.35), 0 0 0 .5px rgba(0,0,0,.2); overflow: hidden; }
   #palette input { width: 100%; height: 56px; border: 0; outline: 0; padding: 0 20px; font: 18px system-ui, -apple-system, sans-serif; background: transparent; color: var(--text); }
   #results:not(:empty) { border-top: 1px solid var(--line); padding: 6px; }
+  #results { max-height: 50vh; overflow-y: auto; }
   #results .row { height: 40px; }
   #results .row.active { background: var(--c); color: #fff; box-shadow: none; }
   #results .hint { margin-left: auto; font-size: 11px; opacity: .6; }
@@ -227,6 +228,7 @@ function renderItems(list, box, activeId) {
 }
 
 let current, mode, picked = 0
+let shown = [] // the command bar's rows as drawn: a state update meanwhile must not change what a click picks
 
 $('import').onclick = () => camber.send('importArc')
 $('update').querySelector('a').onclick = () => camber.send('openUpdate')
@@ -409,17 +411,17 @@ function fuzzy(q, text) {
   return pos - start + start / 100
 }
 
-// "Split with…" lists the space's other tabs before anything is typed
+// "Split with…" lists the space's other tabs before anything is typed, Archived Tabs… its archived ones
 function matches() {
   const q = $('query').value.trim().toLowerCase()
-  if (!current || (!q && mode !== 'split')) return []
+  if (!current || (!q && mode !== 'split' && mode !== 'archive')) return []
   const s = current.spaces[current.active]
-  return tabsOf(s)
+  return (mode === 'archive' ? (current.archived || []).filter((e) => e.spaceId === s.id) : tabsOf(s))
     .filter((t) => mode !== 'split' || t.id !== s.activeId)
     .map((t) => ({ t, score: fuzzy(q, [t.name, t.title, t.url].join(' ')) }))
     .filter((m) => m.score !== null)
     .sort((a, b) => a.score - b.score)
-    .slice(0, 6)
+    .slice(0, mode === 'archive' ? 100 : 6)
     .map((m) => m.t)
 }
 
@@ -428,7 +430,7 @@ const looksLikeURL = (q) => !/\s/.test(q) && (q.includes('.') || q.includes(':')
 // rows in display order: typed URLs go first; otherwise open tabs first (like Arc) and search last
 function items() {
   const q = $('query').value.trim()
-  if (mode === 'split') return matches()
+  if (mode === 'split' || mode === 'archive') return matches()
   if (!q) return []
   const tabs = matches()
   const split = q.length > 1 && 'split with'.startsWith(q.toLowerCase()) ? [{ action: 'split' }] : []
@@ -445,8 +447,8 @@ function splitMode() {
 
 function showResults() {
   const q = $('query').value.trim()
-  const list = items()
-  picked = Math.min(picked, Math.max(list.length - 1, 0))
+  const list = (shown = items())
+  picked = Math.max(0, Math.min(picked, list.length - 1))
   const box = $('results')
   box.replaceChildren()
   list.forEach((t, i) => {
@@ -456,7 +458,7 @@ function showResults() {
       r.append(el('div', 'icon plus', '◫'), el('span', '', 'Split with…'))
     } else if (t) {
       r = tabRow(t)
-      r.append(el('span', 'hint', mode === 'split' ? 'Split' : 'Switch to tab'))
+      r.append(el('span', 'hint', { split: 'Split', archive: 'Reopen' }[mode] || 'Switch to tab'))
     } else {
       r = el('div', 'row')
       r.append(el('div', 'icon plus', looksLikeURL(q) ? '↗' : '⌕'), el('span', '', looksLikeURL(q) ? q : `Search DuckDuckGo for “${q}”`))
@@ -465,6 +467,8 @@ function showResults() {
     if (i === picked) r.classList.add('active')
     box.append(r)
   })
+  if (mode === 'archive' && !list.length) box.append(el('div', 'row muted', q ? 'No archived tab matches' : 'No archived tabs in this space'))
+  box.querySelector('.active')?.scrollIntoView({ block: 'nearest' })
 }
 
 camber.onPalette(({ mode: m, url, backdrop }) => {
@@ -474,24 +478,26 @@ camber.onPalette(({ mode: m, url, backdrop }) => {
     Object.assign(snap.style, { left: backdrop.x + 'px', top: backdrop.y + 'px', width: backdrop.width + 'px', height: backdrop.height + 'px' })
   } else snap.removeAttribute('src')
   if (m === 'peek') return
+  if (m === 'close') return document.body.classList.remove('palette')
   mode = m
   picked = 0
   document.body.classList.add('palette')
   const q = $('query')
   q.value = url
-  q.placeholder = mode === 'split' ? 'Split with…' : 'Search or enter URL'
+  q.placeholder = { split: 'Split with…', archive: 'Search archived tabs' }[mode] || 'Search or enter URL'
   q.focus()
   q.select()
   showResults()
 })
 
 function submit() {
-  const t = items()[picked]
+  const t = shown[picked]
   const q = $('query').value
   if (t?.action) return splitMode()
   document.body.classList.remove('palette')
   if (t && mode === 'split') camber.send('split', t.id)
   else if (mode === 'split') camber.send('closePalette')
+  else if (mode === 'archive') camber.send(t ? 'reopen' : 'closePalette', t?.id)
   else if (t) camber.send('select', t.id)
   else if (q.trim()) camber.send('go', q, mode)
   else camber.send('closePalette')
