@@ -189,10 +189,10 @@ function render() {
   const nav = { back: !!wc?.navigationHistory.canGoBack(), forward: !!wc?.navigationHistory.canGoForward(), loading: !!wc?.isLoading() }
   const notice = update && state.dismissedUpdate !== update.version ? update : null
   const pane = pair() && paneBounds(space().activeId)
-  ui.webContents.send('state', { state, sidebarOpen, offerArc, tabId: wc?.id, extensionsVersion, nav, platform: process.platform, update: notice, beta: !DEMO && !state.betaDismissed, pane, peek: peek && { url: peek.url, ...peekBounds() } })
-  clearTimeout(saveTimer)
-  saveTimer = setTimeout(save, 500)
+  ui.webContents.send('state', { state: { ...state, boosts: undefined }, sidebarOpen, offerArc, tabId: wc?.id, extensionsVersion, nav, platform: process.platform, update: notice, beta: !DEMO && !state.betaDismissed, pane, peek: peek && { url: peek.url, ...peekBounds() } })
+  saveSoon()
 }
+const saveSoon = () => { clearTimeout(saveTimer); saveTimer = setTimeout(save, 500) }
 
 // macOS draws traffic lights over the sidebar; Windows and Linux get native caption buttons
 // (titleBarOverlay) in a strip across the top, so the page starts below that strip
@@ -320,6 +320,30 @@ function extensionsFor(profile) {
 // and page-preload.js saves and fills passwords
 const pageView = (profile) => new WebContentsView({ webPreferences: { partition: 'persist:' + profile, preload: path.join(__dirname, 'page-preload.js') } })
 
+// Boosts, the CSS part of Arc's: state.boosts[host] = { css, off } goes into every tab page on that host when
+// its document is ready, and again on each edit. Tab > Boost This Site… edits the current site's in the sidebar.
+const hostOf = (url) => { try { return new URL(url).hostname } catch { return '' } }
+const boosted = new WeakMap() // page -> promise of the key of the CSS it has in; each change waits for the last
+function boostPage(wc) {
+  boosted.set(wc, (boosted.get(wc) || Promise.resolve()).then(async (key) => {
+    // a key from the document before a navigation no longer matches anything
+    if (key) await wc.removeInsertedCSS(key).catch(() => {})
+    if (wc.isDestroyed()) return
+    // read now, after the wait: the page may be on another host than when this was asked for
+    const b = state.boosts?.[hostOf(wc.getURL())]
+    return b?.css && !b.off ? wc.insertCSS(b.css) : undefined
+  }).catch(() => undefined))
+}
+function editBoost() {
+  closePalette()
+  const host = hostOf(find(space().activeId)?.t.url)
+  if (!host || peek) return
+  if (!sidebarOpen) toggleSidebar()
+  const b = state.boosts?.[host]
+  ui.webContents.send('palette', { mode: 'boost', boost: { host, css: b?.css || '', on: !b?.off } })
+  ui.webContents.focus()
+}
+
 // `adopt` is an already loaded view (a peek) that becomes this tab's page as it is
 function viewFor(t, adopt) {
   if (views.has(t.id)) return views.get(t.id)
@@ -333,6 +357,8 @@ function viewFor(t, adopt) {
   wc.on('did-navigate-in-page', (_, url, main) => { if (main) { t.url = url; render() } })
   wc.on('did-start-loading', render)
   wc.on('did-stop-loading', render)
+  wc.on('dom-ready', () => boostPage(wc))
+  if (adopt) boostPage(wc) // a peek turned tab is past its dom-ready
   // clicking the other pane of a split makes it the active tab
   wc.on('before-mouse-event', (_, m) => { if (m.type === 'mouseDown' && pair()?.includes(t.id) && space().activeId !== t.id) select(t.id) })
   wc.setWindowOpenHandler(popups(newTab))
@@ -715,6 +741,17 @@ const commands = {
   dismissBeta() { state.betaDismissed = true; render() },
   // drag and drop in the sidebar; a today tab dropped among the pinned ones is pinned, and back
   moveTab,
+  editBoost,
+  // the sidebar's Boost editor, as you type: an empty one is deleted
+  boost(host, css, on) {
+    if (typeof host !== 'string' || !host || typeof css !== 'string' || css.length > 100000) return
+    state.boosts = { ...state.boosts }
+    if (css.trim()) state.boosts[host] = { css, ...(!on && { off: true }) }
+    else delete state.boosts[host]
+    for (const v of views.values()) if (hostOf(v.webContents.getURL()) === host) boostPage(v.webContents)
+    saveSoon()
+  },
+  boostDone: () => current()?.focus(),
   toSpace(id, i) { if (typeof id === 'string' && Number.isInteger(i)) moveToSpace(id, i) },
   reopen(id) { closePalette(); if (typeof id === 'string') reopen(id) },
   renameSpace(id, name) {
@@ -766,6 +803,7 @@ function menu() {
         item('Close Tab', 'CmdOrCtrl+W', () => { const w = focusedLittle(); if (w) w.close(); else if (peek) closePeek(); else closeTab() }),
         item('Reopen Closed Tab', 'CmdOrCtrl+Shift+T', () => reopen()),
         item('Archived Tabs…', undefined, () => { front(); openPalette('archive') }),
+        item('Boost This Site…', undefined, editBoost),
         item('Clear Archived Tabs', undefined, () => { closePalette(); state.archived = []; render() }),
         item('New Little Window', 'CmdOrCtrl+Shift+N', () => little()),
         item('Open in camber', 'CmdOrCtrl+O', () => { const w = focusedLittle(); if (w) intoCamber(w); else peekToTab() }),

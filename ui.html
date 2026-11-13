@@ -52,6 +52,13 @@
   .row span:has(> input) { flex: 1; overflow: visible; }
   #space-name input, .row input { width: 100%; margin: -3px 0 -3px -4px; padding: 2px 4px; border: 0; border-radius: 5px; outline: 1.5px solid var(--c); font: inherit; letter-spacing: inherit; color: var(--text); background: var(--active); }
   #tabs { flex: 1; overflow-y: auto; margin: 0 -2px; padding: 0 2px; }
+  body.boosting #tabs { display: none; }
+  #boost { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; padding: 4px 2px 10px; }
+  #boost[hidden] { display: none; }
+  #boost .head { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+  #boost .head span { flex: 1; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #boost .head button { border: 0; border-radius: 6px; padding: 3px 8px; background: var(--active); color: var(--text); font: inherit; }
+  #boost textarea { flex: 1; resize: none; border: 0; border-radius: 8px; padding: 8px; outline: 1.5px solid var(--c); background: var(--active); color: var(--text); font: 12px/1.5 ui-monospace, Menlo, monospace; }
   #tabs::-webkit-scrollbar { display: none; }
 
   .row { display: flex; align-items: center; gap: 9px; height: 34px; padding: 0 9px; border-radius: 9px; white-space: nowrap; overflow: hidden; }
@@ -139,6 +146,7 @@
   <div id="favs"></div>
   <div id="space-name"></div>
   <div id="tabs"></div>
+  <div id="boost" hidden><div class="head"><span></span><label><input type="checkbox"> On</label><button>Done</button></div><textarea spellcheck="false" maxlength="100000" placeholder="CSS for this site, like&#10;body { font-size: 18px }"></textarea></div>
   <div id="update" hidden><a></a><button class="restart" hidden>Restart</button><button title="Dismiss">×</button></div>
   <div id="beta" hidden><div>camber is in beta, so you may see bugs.<br><button class="link">Report one on GitHub</button></div><button title="Dismiss">×</button></div>
   <button id="import" hidden>Import from Arc</button>
@@ -317,6 +325,7 @@ function draw({ state, sidebarOpen, offerArc, tabId, extensionsVersion, nav, pla
   if (!$('space-name').querySelector('input') || $('space-name').dataset.space !== s.id) $('space-name').textContent = s.name
 
   const active = tabsOf(s).find((t) => t.id === s.activeId)
+  if (!boostBox.hidden && hostOfUrl(active?.url) !== boostHost) closeBoost(false)
   // address pill: lock for https, the domain, and the rest of the url on hover
   let u = null
   try { u = active && new URL(active.url) } catch {}
@@ -448,8 +457,8 @@ function items() {
   if (mode === 'split' || mode === 'archive') return matches()
   if (!q) return []
   const tabs = matches()
-  const split = q.length > 1 && 'split with'.startsWith(q.toLowerCase()) ? [{ action: 'split' }] : []
-  return looksLikeURL(q) ? [null, ...tabs] : [...split, ...tabs, null]
+  const offer = (words, action) => (q.length > 1 && words.startsWith(q.toLowerCase()) ? [{ action }] : [])
+  return looksLikeURL(q) ? [null, ...tabs] : [...offer('split with', 'split'), ...offer('boost this site', 'boost'), ...tabs, null]
 }
 
 function splitMode() {
@@ -470,7 +479,8 @@ function showResults() {
     let r
     if (t?.action) {
       r = el('div', 'row')
-      r.append(el('div', 'icon plus', '◫'), el('span', '', 'Split with…'))
+      const [icon, label] = { split: ['◫', 'Split with…'], boost: ['✎', 'Boost this site…'] }[t.action]
+      r.append(el('div', 'icon plus', icon), el('span', '', label))
     } else if (t) {
       r = tabRow(t)
       r.append(el('span', 'hint', { split: 'Split', archive: 'Reopen' }[mode] || 'Switch to tab'))
@@ -486,7 +496,35 @@ function showResults() {
   box.querySelector('.active')?.scrollIntoView({ block: 'nearest' })
 }
 
-camber.onPalette(({ mode: m, url, backdrop }) => {
+// Boost: the site's CSS, edited in the sidebar so the page beside it shows each change as you type
+let boostHost
+const hostOfUrl = (url) => { try { return new URL(url).hostname } catch { return '' } }
+const boostBox = $('boost'), boostText = boostBox.querySelector('textarea'), boostOn = boostBox.querySelector('input')
+const sendBoost = () => camber.send('boost', boostHost, boostText.value, boostOn.checked)
+function openBoost({ host, css, on }) {
+  boostHost = host
+  boostBox.querySelector('span').textContent = 'Boost: ' + host
+  boostText.value = css
+  boostOn.checked = on
+  boostBox.hidden = false
+  document.body.classList.add('boosting')
+  boostText.focus()
+}
+// Done and Esc give the keys back to the page; closing because the page changed leaves them where they are
+function closeBoost(byHand = true) {
+  if (boostBox.hidden) return
+  sendBoost()
+  boostBox.hidden = true
+  document.body.classList.remove('boosting')
+  if (byHand) camber.send('boostDone')
+}
+boostText.oninput = sendBoost
+boostOn.onchange = sendBoost
+boostBox.querySelector('button').onclick = () => closeBoost()
+boostText.onkeydown = (e) => { if (e.key === 'Escape') closeBoost() }
+
+camber.onPalette(({ mode: m, url, backdrop, boost }) => {
+  if (m === 'boost') return openBoost(boost)
   const snap = $('snap')
   if (backdrop) {
     snap.src = backdrop.src
@@ -508,7 +546,8 @@ camber.onPalette(({ mode: m, url, backdrop }) => {
 function submit() {
   const t = shown[picked]
   const q = $('query').value
-  if (t?.action) return splitMode()
+  if (t?.action === 'split') return splitMode()
+  if (t?.action === 'boost') { document.body.classList.remove('palette'); return camber.send('editBoost') }
   document.body.classList.remove('palette')
   if (t && mode === 'split') camber.send('split', t.id)
   else if (mode === 'split') camber.send('closePalette')

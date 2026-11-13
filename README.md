@@ -140,6 +140,12 @@ Easels. Split views and tab groups become plain tabs. You sign in to sites again
 For passwords, export them from Arc to a CSV file and use File > Passwords >
 Import from CSV… (below).
 
+Boosts: Tab > Boost This Site… (or type "boost" in the command bar) opens a box in
+the sidebar for the site's own CSS. The page beside it changes as you type; On turns
+it off without losing it, and an empty box deletes it. A Boost is per host and goes
+into every tab on that host, top page only (not its frames), up to 100,000 characters.
+Not yet: Arc's zap, fonts and colours, or Boosts in a peek or a little window.
+
 Air Traffic Control: on a site, Tab > Always Open Links to This Site in This
 Space, and links to it (and its subdomains) from other apps open in that space.
 Tab > Forget Routing Rule for This Site undoes it.
