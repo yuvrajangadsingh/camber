@@ -46,7 +46,14 @@ function load() {
   } catch (e) {
     if (e.code === 'ENOENT') return
     // keep the unreadable file for the user instead of overwriting it with defaults
-    fs.renameSync(statePath(), statePath() + '.bad')
+    return fs.renameSync(statePath(), statePath() + '.bad')
+  }
+  // saved by a camber from before this list: the extensions installed then are not new to the
+  // profiles that ran them, which are the ones with a folder in Partitions, space or no space
+  if (!state.extensionsSeen) {
+    const ls = (name) => { const dir = path.join(app.getPath('userData'), name); return fs.existsSync(dir) ? fs.readdirSync(dir) : [] }
+    const ids = ls('Extensions').filter((n) => /^[a-p]{32}$/.test(n))
+    state.extensionsSeen = Object.fromEntries(ls('Partitions').map((p) => [p, [...ids]]))
   }
 }
 
@@ -312,7 +319,24 @@ function extensionsFor(profile) {
     },
   })
   for (const type of ['frame', 'service-worker']) ses.registerPreloadScript({ id: 'browser-alias-' + type, type, filePath: path.join(__dirname, 'extension-preload.js') })
-  installChromeWebStore({ session: ses }).catch((e) => console.error('web store:', e))
+  // Electron never fires runtime.onInstalled, so an extension's worker asks once
+  // (extension-preload.js): it was just installed if this profile never ran it, or if the Web
+  // Store installed it again. Extensions share one folder, so a profile can get one it never ran.
+  const installing = new Set(), asked = new WeakSet()
+  const beforeInstall = async ({ id }) => { if (!ses.extensions.getExtension(id)) installing.add(id); return { action: 'allow' } }
+  installChromeWebStore({ session: ses, beforeInstall }).catch((e) => console.error('web store:', e))
+  ses.serviceWorkers.on('running-status-changed', ({ runningStatus, versionId }) => {
+    if (runningStatus !== 'starting') return
+    const w = ses.serviceWorkers.getWorkerFromVersionID(versionId)
+    if (!w?.scope?.startsWith('chrome-extension://') || asked.has(w)) return
+    asked.add(w)
+    w.ipc.handle('camber-installed', () => {
+      const id = new URL(w.scope).host, seen = ((state.extensionsSeen ??= {})[profile] ??= [])
+      const first = !seen.includes(id)
+      if (first) { seen.push(id); saveSoon() }
+      return installing.delete(id) || first
+    })
+  })
   // the toolbar element doesn't notice installs, so the ui rebuilds it when this changes
   const bump = () => { extensionsVersion++; if (ui) render() }
   ses.extensions.on('extension-loaded', bump)
