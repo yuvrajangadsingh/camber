@@ -295,6 +295,7 @@ let extensionsVersion = 0
 function extensionsFor(profile) {
   if (extensions.has(profile)) return extensions.get(profile)
   const ses = session.fromPartition('persist:' + profile)
+  const tabOf = (wc) => [...views].find(([, v]) => v.webContents === wc)?.[0]
   const ext = new ElectronChromeExtensions({
     session: ses,
     createTab({ url }) {
@@ -302,8 +303,12 @@ function extensionsFor(profile) {
       return [current(), win]
     },
     selectTab(wc) {
-      const id = [...views].find(([, v]) => v.webContents === wc)?.[0]
+      const id = tabOf(wc)
       if (id) select(id)
+    },
+    removeTab(wc) {
+      const id = tabOf(wc)
+      if (id) closeTab(id)
     },
   })
   for (const type of ['frame', 'service-worker']) ses.registerPreloadScript({ id: 'browser-alias-' + type, type, filePath: path.join(__dirname, 'extension-preload.js') })
@@ -410,10 +415,12 @@ function closeTab(id = space().activeId) {
   dropView(id)
   if (s.today.some((t) => t.id === id)) { tabs.archive(state, s, detach(s, id), Date.now()); tabs.forget(s, [id]) }
   if (!shown) { layout(); return render() } // a split's other pane takes the full width
-  closePeek() // it was over the page that just went
-  s.activeId = null
   const ids = [...tabsOf(s)].map((t) => t.id)
   const next = tabs.afterClose(id, s.mru, ids, s.today.map((t) => t.id), ids.filter((i) => views.has(i)))
+  // an extension can close the tab another space comes back to; that space stays off screen
+  if (s !== space()) { s.activeId = next || null; return render() }
+  closePeek() // it was over the page that just went
+  s.activeId = null
   if (next) select(next)
   else { layout(); render() }
 }
