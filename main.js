@@ -405,6 +405,28 @@ function reopen(id) {
   render()
 }
 
+// a tab or folder dropped on another space's button moves there. A page going to another profile can't keep
+// its view (other cookies and logins), so it loads again there when opened; a split it was in comes apart.
+// A page that couldn't load again (a blob: document it made) doesn't go to another profile at all.
+function moveToSpace(id, i) {
+  const from = space(), to = state.spaces[i]
+  if (!to) return
+  const it = [...nodes([...from.pinned, ...from.today])].find((x) => x.id === id)
+  const other = to.profile !== from.profile
+  if (other && [...nodes(it ? [it] : [])].some((t) => views.has(t.id) && !tabs.loadable(t.url))) return
+  const shown = from.activeId
+  const ids = tabs.toSpace(from, to, id, Date.now())
+  if (!ids) return
+  const partner = from.split?.includes(shown) ? from.split.find((t) => !ids.includes(t)) : undefined
+  if (from.split?.some((t) => ids.includes(t))) from.split = null
+  if (other) ids.forEach(dropView)
+  // the tab on screen left: its split's other pane stays, else the same fallback as closing it
+  const rest = [...tabsOf(from)].map((t) => t.id)
+  const next = ids.includes(shown) && (partner || tabs.afterClose(shown, from.mru, rest, from.today.map((t) => t.id), rest.filter((x) => views.has(x))))
+  if (next) select(next)
+  else { if (ids.includes(shown)) from.activeId = null; layout(); render() }
+}
+
 // Cmd+D and drag both go through tabs.move; favorites stay favorites
 function moveTab(id, target, where) {
   if (tabs.move(space(), id, target, where, Date.now())) render()
@@ -693,6 +715,7 @@ const commands = {
   dismissBeta() { state.betaDismissed = true; render() },
   // drag and drop in the sidebar; a today tab dropped among the pinned ones is pinned, and back
   moveTab,
+  toSpace(id, i) { if (typeof id === 'string' && Number.isInteger(i)) moveToSpace(id, i) },
   reopen(id) { closePalette(); if (typeof id === 'string') reopen(id) },
   renameSpace(id, name) {
     const s = state.spaces.find((s) => s.id === id)

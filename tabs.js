@@ -57,6 +57,24 @@ function rename(s, id, name) {
   return true
 }
 
+// moves tab or folder `id` from space `from` to space `to`: what was pinned (a folder always is) goes to
+// the end of the pinned, a today tab to the top of today. The moved tabs count as used at `now` and leave
+// `from`'s history; their ids are returned (none for an empty folder), false when nothing moved (a favorite,
+// the same space).
+function toSpace(from, to, id, now) {
+  if (from === to) return false
+  const today = from.today.some((t) => t.id === id)
+  const it = detach(from, id)
+  if (!it) return false
+  if (today) to.today.unshift(it)
+  else to.pinned.push(it)
+  const moved = [...nodes([it])].filter((t) => !t.children)
+  for (const t of moved) t.lastActive = now
+  const ids = moved.map((t) => t.id)
+  forget(from, ids)
+  return ids
+}
+
 // most recently used first; capped so state.json doesn't grow with long-gone ids
 const touch = (mru, id) => [id, ...(mru || []).filter((x) => x !== id)].slice(0, 50)
 
@@ -200,4 +218,4 @@ function route(routes, url, spaceIds) {
 // today and favorites); a restored one that points elsewhere is dropped
 const pairOk = (split, ids) => Array.isArray(split) && split.length === 2 && split[0] !== split[1] && split.every((id) => ids.includes(id))
 
-module.exports = { nodes, detach, move, rename, touch, forget, afterClose, archive, unarchive, prune, idle, web, loadable, navigable, permKeys, permission, checked, permOrigin, asker, covers, route, pairOk }
+module.exports = { nodes, detach, move, toSpace, rename, touch, forget, afterClose, archive, unarchive, prune, idle, web, loadable, navigable, permKeys, permission, checked, permOrigin, asker, covers, route, pairOk }

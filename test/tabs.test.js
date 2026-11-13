@@ -1,6 +1,6 @@
 const test = require('node:test')
 const assert = require('node:assert')
-const { touch, forget, afterClose, move, rename, archive, unarchive, prune, idle, web, loadable, navigable, permKeys, permission, checked, permOrigin, asker, pairOk, route: tabsRoute } = require('../tabs')
+const { touch, forget, afterClose, move, toSpace, rename, archive, unarchive, prune, idle, web, loadable, navigable, permKeys, permission, checked, permOrigin, asker, pairOk, route: tabsRoute } = require('../tabs')
 
 test('closing a tab goes back to the one used before it', () => {
   let mru = []
@@ -75,6 +75,37 @@ test('drag and drop moves tabs within and across pinned, folders and today', () 
   s = space()
   for (const [id, target] of [['f', 'today'], ['nope', 'p1'], ['t1', 'nope'], ['t1', 't1']]) assert.strictEqual(move(s, id, target, 'before'), false)
   assert.deepStrictEqual(s, space())
+})
+
+test('a tab or folder dropped on another space moves there', () => {
+  const a = {
+    id: 'A', activeId: 't1', mru: ['t1', 'p1'],
+    pinned: [{ id: 'p1' }, { id: 'f', title: 'F', children: [{ id: 'c1' }, { id: 'g', title: 'G', children: [{ id: 'c2' }] }] }],
+    today: [{ id: 't1' }, { id: 't2' }],
+  }
+  const b = { id: 'B', pinned: [{ id: 'bp' }], today: [{ id: 'bt' }] }
+  assert.deepStrictEqual(toSpace(a, b, 't1', 5), ['t1'])
+  assert.deepStrictEqual(b.today.map((t) => t.id), ['t1', 'bt'])
+  assert.strictEqual(b.today[0].lastActive, 5)
+  // it was on screen in A, so A goes back to the tab used before it
+  assert.strictEqual(a.activeId, 'p1')
+  assert.deepStrictEqual(a.mru, ['p1'])
+  // a folder moves whole, nested folders included, to the end of the pinned
+  assert.deepStrictEqual(toSpace(a, b, 'f', 6), ['c1', 'c2'])
+  assert.deepStrictEqual(b.pinned.map((t) => t.id), ['bp', 'f'])
+  assert.deepStrictEqual(a.pinned.map((t) => t.id), ['p1'])
+  // a tab inside a folder moves alone
+  assert.deepStrictEqual(toSpace(b, a, 'c2', 7), ['c2'])
+  assert.deepStrictEqual(a.pinned.map((t) => t.id), ['p1', 'c2'])
+  assert.deepStrictEqual(b.pinned[1].children[1].children, [])
+  // an empty folder moves too, with no tabs in it
+  a.pinned.push({ id: 'e', title: 'Empty', children: [] })
+  assert.deepStrictEqual(toSpace(a, b, 'e', 8), [])
+  assert.strictEqual(b.pinned.at(-1).id, 'e')
+  // the same space or an id that isn't in the space change nothing
+  assert.strictEqual(toSpace(a, a, 'p1', 8), false)
+  assert.strictEqual(toSpace(a, b, 'nope', 8), false)
+  assert.deepStrictEqual(a.pinned.map((t) => t.id), ['p1', 'c2'])
 })
 
 test('tabs and folders take a name of their own, and an empty one gives a tab its title back', () => {

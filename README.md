@@ -95,7 +95,8 @@ Cmd on macOS, Ctrl on Linux and Windows.
 | Cmd+Ctrl+Left/Right (Ctrl+Alt on Linux/Windows) | previous/next space |
 
 Drag tabs to reorder them; dropping a tab among the pinned ones pins it, and
-dropping a pinned tab under New Tab unpins it. Double-click a space's name, a tab or a
+dropping a pinned tab under New Tab unpins it. Drop a tab or a folder on another
+space's dot at the bottom to move it there. Double-click a space's name, a tab or a
 folder to rename it. Closing a tab takes you back to the tab you were on before it.
 Unpinned tabs you haven't opened for 12 hours are closed (Tab > Archive After:
 12h, 24h or Off). Tab > Archived Tabs… lists the ones closed or archived in this

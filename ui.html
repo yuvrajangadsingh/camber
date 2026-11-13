@@ -97,6 +97,7 @@
   #spaces { display: flex; flex-wrap: wrap; gap: 8px 10px; justify-content: center; align-items: center; }
   #spaces button { width: 10px; height: 10px; border-radius: 50%; border: 0; padding: 0; opacity: .5; transition: transform .15s, opacity .15s; }
   #spaces button:hover { opacity: .85; }
+  #spaces button.drop { opacity: 1; transform: scale(1.8); }
   #spaces button.active { opacity: 1; transform: scale(1.35); box-shadow: 0 0 0 2px var(--mix), 0 0 0 3.5px var(--text); }
   #spaces .add { width: 18px; height: 18px; background: transparent; color: var(--muted); font-size: 15px; line-height: 18px; opacity: 1; }
 
@@ -218,6 +219,9 @@ function renderItems(list, box, activeId) {
     f.onclick = () => camber.send('toggleFolder', it.id)
     f.ondblclick = () => editInline(f.querySelector('span'), it.title, 'rename', it.id)
     f.dataset.drop = it.id
+    // a folder only moves to another space, so it has its own drag type the rows don't take
+    f.draggable = true
+    f.ondragstart = (e) => { e.dataTransfer.setData(FOLDER, it.id); e.dataTransfer.effectAllowed = 'move' }
     box.append(f)
     if (it.open) {
       const c = el('div', 'children')
@@ -228,6 +232,7 @@ function renderItems(list, box, activeId) {
 }
 
 let current, mode, picked = 0
+let dropOn = null // the space button a tab or folder is being dragged over
 let shown = [] // the command bar's rows as drawn: a state update meanwhile must not change what a click picks
 
 $('import').onclick = () => camber.send('importArc')
@@ -357,6 +362,15 @@ function draw({ state, sidebarOpen, offerArc, tabId, extensionsVersion, nav, pla
     b.style.background = sp.color
     b.title = sp.name
     b.onclick = () => camber.send('showSpace', i)
+    // drop a tab or folder on another space's button to move it there
+    // (dropOn keeps it lit and big through a redraw mid-drag, a page title update say)
+    if (i !== state.active) {
+      if (i === dropOn) b.classList.add('drop')
+      b.ondragover = (e) => { if ([DRAG, FOLDER].some((k) => e.dataTransfer.types.includes(k))) { e.preventDefault(); dropOn = i; b.classList.add('drop') } }
+      // a button a redraw replaced still gets a dragleave; only a real leave clears dropOn
+      b.ondragleave = () => { if (b.isConnected) dropOn = null; b.classList.remove('drop') }
+      b.ondrop = (e) => { e.preventDefault(); dropOn = null; b.classList.remove('drop'); camber.send('toSpace', e.dataTransfer.getData(DRAG) || e.dataTransfer.getData(FOLDER), i) }
+    }
     bar.append(b)
   })
   const add = el('button', 'add', '+')
@@ -368,6 +382,7 @@ function draw({ state, sidebarOpen, offerArc, tabId, extensionsVersion, nav, pla
 // drag to reorder: a tab row takes the drop above or below itself, a folder row above itself
 // or inside, the line under the pinned tabs means "pin at the end", New Tab "unpin at the top"
 const DRAG = 'application/x-camber-tab'
+const FOLDER = 'application/x-camber-folder'
 let marked
 function dropSpot(e) {
   const r = e.dataTransfer.types.includes(DRAG) && e.target.closest('[data-drop]')
