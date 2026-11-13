@@ -1,6 +1,6 @@
 const test = require('node:test')
 const assert = require('node:assert')
-const { site, match, put, forSite } = require('../passwords')
+const { site, match, put, forSite, csv, fromCsv } = require('../passwords')
 
 test('passwords are only for https pages and local http', () => {
   assert.strictEqual(site('https://github.com'), 'https://github.com')
@@ -37,4 +37,55 @@ test('a site gets its own logins only, the last used first', () => {
   assert.deepStrictEqual(forSite(vault, 'https://a.example').map((l) => l.username), ['new', 'old'])
   assert.deepStrictEqual(forSite(vault, 'http://localhost:3001'), [])
   assert.deepStrictEqual(forSite(vault, 'https://evil.example'), [])
+})
+
+test('reads quoted CSV fields with commas, quotes and line breaks', () => {
+  assert.deepStrictEqual(csv('a,b\r\n"x,1","say ""hi"""\n"two\nlines",\n\n'), [['a', 'b'], ['x,1', 'say "hi"'], ['two\nlines', '']])
+  assert.deepStrictEqual(csv(''), [])
+})
+
+test('imports logins from Chrome, Firefox, Safari and Bitwarden exports', () => {
+  const chrome = '\uFEFFname,url,username,password,note\n' +
+    'a,https://a.example/login?next=1,ann,"p,w""1",\n' +
+    'dev,http://localhost:3000/,dev,devpw,\n' +
+    'plain,http://insecure.example/,x,y,\n' +
+    'empty,https://nopass.example/,z,,\n' +
+    'app,android://abc@com.example/,q,r,\n' +
+    'multi,https://m.example/,"two\nlines",pw,"a note\nover lines"\n'
+  const got = fromCsv(chrome)
+  assert.deepStrictEqual(got.logins, [
+    { origin: 'https://a.example', username: 'ann', password: 'p,w"1' },
+    { origin: 'http://localhost:3000', username: 'dev', password: 'devpw' },
+    { origin: 'https://m.example', username: 'two\nlines', password: 'pw' },
+  ])
+  assert.strictEqual(got.skipped, 3)
+  const firefox = '"url","username","password","httpRealm","formActionOrigin","guid"\n"https://f.example","fox","fpw","","https://f.example","{1}"\n'
+  assert.deepStrictEqual(fromCsv(firefox).logins, [{ origin: 'https://f.example', username: 'fox', password: 'fpw' }])
+  const safari = 'Title,URL,Username,Password,Notes,OTPAuth\nS,https://s.example/,sam,spw,,\n'
+  assert.deepStrictEqual(fromCsv(safari).logins, [{ origin: 'https://s.example', username: 'sam', password: 'spw' }])
+  const bitwarden = 'folder,favorite,type,name,notes,fields,reprompt,login_uri,login_username,login_password,login_totp\n,,login,B,,,0,https://b.example/,bo,bpw,\n,,note,N,,,0,,,,\n'
+  assert.deepStrictEqual(fromCsv(bitwarden), { logins: [{ origin: 'https://b.example', username: 'bo', password: 'bpw' }], skipped: 1 })
+  // no username column: logins with an empty name; no url or password column: not an export
+  assert.deepStrictEqual(fromCsv('url,password\nhttps://n.example,npw\n').logins, [{ origin: 'https://n.example', username: '', password: 'npw' }])
+  assert.strictEqual(fromCsv('name,email\nx,y\n'), null)
+  assert.strictEqual(fromCsv(''), null)
+})
+
+test('a CSV with broken quoting is refused, never read with its columns shifted', () => {
+  assert.throws(() => csv('url,username,password\nhttps://a.example,al"ice,SECRET1\nhttps://b.example,"bob,SECRET2\n'), /quote that doesn't close/)
+  assert.throws(() => csv('a,"b"c,d\n'), /text after a closing quote/)
+  assert.throws(() => fromCsv('url,username,password\nhttps://a.example,"ann"x,pw\n'), /row 2/)
+  // a quote inside a field that didn't start with one is kept as it is
+  assert.deepStrictEqual(csv('a,al"ice,"x""y"\n'), [['a', 'al"ice', 'x"y']])
+  assert.deepStrictEqual(csv('"a","",b'), [['a', '', 'b']])
+})
+
+test('saving thousands of logins stays quick', () => {
+  const vault = { logins: [], never: [] }
+  const t0 = Date.now()
+  for (let i = 0; i < 5000; i++) put(vault, 'https://s' + i + '.example', 'u', 's', i)
+  put(vault, 'https://s1.example', 'u', 'new', 9999)
+  assert.strictEqual(vault.logins.length, 5000)
+  assert.strictEqual(match(vault, 'https://s1.example', 'u').secret, 'new')
+  assert.ok(Date.now() - t0 < 2000, 'took ' + (Date.now() - t0) + ' ms')
 })

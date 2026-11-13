@@ -137,6 +137,8 @@ What comes over:
 Importing again replaces the spaces from the earlier import instead of adding
 copies. Not imported: history, passwords, bookmarks, extensions, Boosts and
 Easels. Split views and tab groups become plain tabs. You sign in to sites again.
+For passwords, export them from Arc to a CSV file and use File > Passwords >
+Import from CSV… (below).
 
 Air Traffic Control: on a site, Tab > Always Open Links to This Site in This
 Space, and links to it (and its subdomains) from other apps open in that space.
@@ -152,7 +154,10 @@ Now, Never for This Site). It asks once the sign-in went through, so a wrong pas
 isn't offered. Next time the form comes up filled in. With more than one login for a
 site the last used one goes in, and typing another saved username brings its password.
 File > Passwords lists them with Copy Password and Delete, and has the switch to stop
-asking.
+asking. File > Passwords > Import from CSV… takes a password export from Chrome, Arc,
+Edge, Brave, Firefox, Safari, 1Password or Bitwarden; only https sites (and local http)
+come in. The file holds every password in plain text, so camber offers to move it to
+the Trash afterwards.
 
 They are sealed with the system keychain (Keychain on macOS, DPAPI on Windows, GNOME
 Keyring or KWallet on Linux) and kept in `passwords.json` in the user data folder; the
@@ -194,8 +199,8 @@ this is what the sidebar costs with its tabs asleep.
   untested.
 - Apple Passwords (the iCloud Passwords extension) doesn't work: macOS starts its
   helper only for browsers on Apple's list, and an unsigned camber can't be on it.
-- Saved passwords: no import from Arc, Chrome or a CSV file, no password generator,
-  and no search in the list.
+- Saved passwords: no password generator and no search in the list. CSV import
+  takes one address per login (1Password 7's extra URLS column is skipped).
 - No code signing, no Windows arm64 build. Updates install themselves only on Windows
   and the AppImage (from the next release on); macOS and the .deb get a note in the sidebar.
 - No Widevine: Netflix, Prime Video, Disney+ and Spotify web do not play (stock

@@ -877,16 +877,55 @@ function loadVault() {
   }
 }
 function saveVault() {
+  let ok = true
   try {
     const tmp = vaultPath() + '.tmp'
     fs.writeFileSync(tmp, JSON.stringify(vault, null, 2), { mode: 0o600 })
     fs.renameSync(tmp, vaultPath())
   } catch (e) {
+    ok = false
     dialog.showErrorBox('Passwords', `Could not write ${vaultPath()}, so this change is lost when camber quits.\n\n${e.message}`)
   }
   menu() // File > Passwords lists them
   // open pages keep their site's logins (page-preload.js) and ask for them again
   for (const wc of webContents.getAllWebContents()) wc.send('logins-changed')
+  return ok
+}
+
+// File > Passwords > Import from CSV…: a password export from another browser or password manager. Each
+// password is sealed like a saved one, replacing a login already here for the same site and name. The file
+// holds every password in plain text, so camber offers to move it to the Trash afterwards.
+async function importPasswords() {
+  const title = 'Import Passwords'
+  if (!canSeal()) return dialog.showErrorBox(title, 'Saving passwords needs a system keyring.')
+  const { canceled, filePaths: [file] = [] } = await dialog.showOpenDialog(win, { title, filters: [{ name: 'CSV', extensions: ['csv'] }], properties: ['openFile'] })
+  if (canceled || !file) return
+  let found
+  try {
+    // an export of thousands of logins is well under this; anything bigger isn't one
+    if (fs.statSync(file).size > 20e6) throw new Error('The file is too big to be a password export.')
+    found = passwords.fromCsv(fs.readFileSync(file, 'utf8'))
+  } catch (e) {
+    return dialog.showErrorBox(title, `Could not read ${file}\n\n${e.message}`)
+  }
+  if (!found) return dialog.showErrorBox(title, 'This file has no url and password columns. Export the passwords as a CSV file from the other browser or password manager first.')
+  let done = 0
+  try {
+    for (const l of found.logins) { passwords.put(vault, l.origin, l.username, await seal(l.password), Date.now()); done++ }
+  } catch (e) {
+    saveVault()
+    return dialog.showErrorBox(title, `The system keychain did not seal the passwords, so the import stopped after ${done} of ${found.logins.length}.\n\n${e.message}`)
+  }
+  if (!saveVault()) return // it said why; the CSV stays, nothing else is offered
+  const n = new Set(found.logins.map((l) => l.origin + '\n' + l.username)).size
+  const { response } = await dialog.showMessageBox(win, {
+    message: `Imported ${n} password${n === 1 ? '' : 's'}.`,
+    detail: (found.skipped ? `${found.skipped} skipped: not an https site, or no password.\n\n` : '') + 'The CSV file holds every password in plain text. Move it to the Trash?',
+    buttons: ['Move to Trash', 'Keep It'],
+    defaultId: 0,
+    cancelId: 1,
+  })
+  if (response === 0) shell.trashItem(file).catch((e) => dialog.showErrorBox(title, e.message))
 }
 
 // how a site is named to the user: the host, with http:// kept so a local http site can't pass for the https one
@@ -913,6 +952,7 @@ function passwordMenu() {
     })),
     ...vault.never.map((o) => ({ label: `${siteName(o)}: never saved`, submenu: [{ label: 'Offer to Save Again', click: forget('never', o) }] })),
     ...(vault.logins.length + vault.never.length ? [{ type: 'separator' }] : []),
+    { label: 'Import from CSV…', click: importPasswords },
     // read off the configuration only: asking the keyring itself here would be a keyring prompt at launch
     LINUX && ['basic_text', 'unknown'].includes(safeStorage.getSelectedStorageBackend())
       ? { label: 'Saving passwords needs a system keyring', enabled: false }
