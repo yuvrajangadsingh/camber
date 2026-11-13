@@ -687,6 +687,9 @@ const commands = {
     const f = [...nodes(space().pinned)].find((f) => f.id === id)
     if (f?.children) { f.open = !f.open; render() }
   },
+  rename(id, name) { tabs.rename(space(), id, name); render() }, // also when refused: the sidebar redraws from state
+  // a rename started on a tab row: the click before it gave the keys to the page
+  focusSidebar: () => ui.webContents.focus(),
 }
 
 ipcMain.on('cmd', (e, name, ...args) => {

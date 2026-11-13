@@ -44,6 +44,19 @@ function move(s, id, target, where, now) {
   return true
 }
 
+// tab or folder `id` of space `s` gets a name of its own (100 characters at most); an empty name gives
+// a tab back its page's title and leaves a folder as it was
+function rename(s, id, name) {
+  if (typeof name !== 'string') return false
+  const it = [...nodes([...s.pinned, ...s.today])].find((it) => it.id === id)
+  name = String(name).trim().slice(0, 100)
+  if (!it || (it.children && !name)) return false
+  if (it.children) it.title = name
+  else if (name) it.name = name
+  else delete it.name
+  return true
+}
+
 // most recently used first; capped so state.json doesn't grow with long-gone ids
 const touch = (mru, id) => [id, ...(mru || []).filter((x) => x !== id)].slice(0, 50)
 
@@ -171,4 +184,4 @@ function route(routes, url, spaceIds) {
 // today and favorites); a restored one that points elsewhere is dropped
 const pairOk = (split, ids) => Array.isArray(split) && split.length === 2 && split[0] !== split[1] && split.every((id) => ids.includes(id))
 
-module.exports = { nodes, detach, move, touch, forget, afterClose, prune, idle, web, loadable, navigable, permKeys, permission, checked, permOrigin, asker, covers, route, pairOk }
+module.exports = { nodes, detach, move, rename, touch, forget, afterClose, prune, idle, web, loadable, navigable, permKeys, permission, checked, permOrigin, asker, covers, route, pairOk }

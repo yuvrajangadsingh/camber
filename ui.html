@@ -49,7 +49,8 @@
   #favs .fav.active { background: var(--active); box-shadow: 0 1px 3px rgba(0,0,0,.1); }
   #favs .icon { width: 20px; height: 20px; border-radius: 5px; }
   #space-name { font-weight: 600; font-size: 12px; letter-spacing: .02em; color: var(--muted); padding: 14px 8px 6px; }
-  #space-name input { width: 100%; margin: -3px 0 -3px -4px; padding: 2px 4px; border: 0; border-radius: 5px; outline: 1.5px solid var(--c); font: inherit; letter-spacing: inherit; color: var(--text); background: var(--active); }
+  .row span:has(> input) { flex: 1; overflow: visible; }
+  #space-name input, .row input { width: 100%; margin: -3px 0 -3px -4px; padding: 2px 4px; border: 0; border-radius: 5px; outline: 1.5px solid var(--c); font: inherit; letter-spacing: inherit; color: var(--text); background: var(--active); }
   #tabs { flex: 1; overflow-y: auto; margin: 0 -2px; padding: 0 2px; }
   #tabs::-webkit-scrollbar { display: none; }
 
@@ -195,6 +196,7 @@ function sidebarRow(t, activeId, today) {
   x.title = today ? 'Close tab' : 'Unload tab'
   x.onclick = (e) => { e.stopPropagation(); camber.send('closeTab', t.id) }
   r.append(x)
+  r.ondblclick = () => { r.draggable = false; editInline(r.querySelector('span'), t.name || t.title || t.url, 'rename', t.id) }
   // Cmd+Shift+click a pinned tab to peek at it
   const open = r.onclick
   if (!today) r.onclick = (e) => (e.shiftKey && (e.metaKey || e.ctrlKey) ? camber.send('peek', t.id) : open(e))
@@ -213,6 +215,7 @@ function renderItems(list, box, activeId) {
     const f = el('div', 'row folder' + (it.open ? ' open' : ''))
     f.append(el('div', 'caret', '›'), el('span', '', it.title))
     f.onclick = () => camber.send('toggleFolder', it.id)
+    f.ondblclick = () => editInline(f.querySelector('span'), it.title, 'rename', it.id)
     f.dataset.drop = it.id
     box.append(f)
     if (it.open) {
@@ -233,29 +236,49 @@ $('beta').querySelector('.link').onclick = () => camber.send('reportBug')
 $('beta').querySelector('[title=Dismiss]').onclick = () => camber.send('dismissBeta')
 $('feedback').onclick = () => camber.send('reportBug')
 $('pill').onclick = () => camber.send('openPalette', 'edit')
-// double-click the space name to rename it: Enter saves, Esc or clicking away cancels
-$('space-name').ondblclick = () => {
-  const box = $('space-name'), s = current.spaces[current.active]
+// double-click the space name, a tab or a folder to rename it: `box` turns into an input holding `value`,
+// Enter sends `cmd` for `id` when the text changed, Esc or clicking away puts `value` back.
+// Clicks inside stay in the input instead of selecting the row under it.
+function editInline(box, value, cmd, id) {
   if (box.querySelector('input')) return
+  camber.send('focusSidebar')
   const input = el('input')
-  input.value = s.name
+  input.value = value
   input.spellcheck = false
-  const done = (name) => { box.textContent = name }
+  // a saved rename gets its redraw from main
+  const done = (text, saved) => { box.textContent = text; if (!saved) draw(last) }
   input.onkeydown = (e) => {
-    if (e.key === 'Enter' && input.value.trim()) { camber.send('renameSpace', s.id, input.value); done(input.value.trim()) }
-    else if (e.key === 'Escape') done(s.name)
+    if (e.key === 'Enter') {
+      const saved = input.value.trim() !== value
+      if (saved) camber.send(cmd, id, input.value)
+      done(input.value.trim() || value, saved)
+    } else if (e.key === 'Escape') done(value)
   }
-  input.onblur = () => { if (input.isConnected) done(s.name) }
-  box.dataset.space = s.id
+  // a click elsewhere ended it: redraw once that click has landed, since a rebuild under the pointer eats it
+  input.onblur = () => {
+    if (!input.isConnected) return
+    box.textContent = value
+    addEventListener('pointerup', () => setTimeout(() => draw(last)), { once: true })
+  }
+  input.onclick = input.ondblclick = (e) => e.stopPropagation()
   box.replaceChildren(input)
   input.focus()
   input.select()
+}
+$('space-name').ondblclick = () => {
+  const s = current.spaces[current.active]
+  $('space-name').dataset.space = s.id
+  editInline($('space-name'), s.name, 'renameSpace', s.id)
 }
 for (const [id, cmd] of [['nav-menu', 'appMenu'], ['nav-sidebar', 'toggleSidebar'], ['nav-back', 'back'], ['nav-forward', 'forward'], ['nav-reload', 'reload']]) $(id).onclick = () => camber.send(cmd)
 const ICONS = { reload: '<path d="M15.5 10a5.5 5.5 0 1 1-1.6-3.9"/><path d="M15.5 3.5v3.2h-3.2"/>', stop: '<path d="M5.5 5.5l9 9M14.5 5.5l-9 9"/>' }
 
 let actionsKey
-camber.onState(({ state, sidebarOpen, offerArc, tabId, extensionsVersion, nav, platform, update, beta, pane, peek }) => {
+// the last state from main: a rename that ends without saving redraws from it, since the sidebar list
+// skipped every update while the rename was open (a closed tab, a folder's second toggle, a drag turned off)
+let last
+camber.onState((p) => draw((last = p)))
+function draw({ state, sidebarOpen, offerArc, tabId, extensionsVersion, nav, platform, update, beta, pane, peek }) {
   document.body.classList.toggle('peek', !!peek)
   if (peek) {
     Object.assign($('peek').style, { left: peek.x + 'px', top: peek.y + 'px', width: peek.width + 'px', height: peek.height + 'px' })
@@ -300,10 +323,6 @@ camber.onState(({ state, sidebarOpen, offerArc, tabId, extensionsVersion, nav, p
   $('nav-reload').title = nav.loading ? 'Stop' : 'Reload (⌘R)'
   $('nav-reload').firstChild.innerHTML = nav.loading ? ICONS.stop : ICONS.reload
 
-  const box = $('tabs')
-  box.replaceChildren()
-  renderItems(s.pinned, box, s.activeId)
-
   // favorites: an icon grid shared by every space on this profile
   $('favs').replaceChildren(...(state.favorites?.[s.profile] || []).map((t) => {
     const f = el('div', 'fav' + (t.id === s.activeId ? ' active' : ''))
@@ -312,15 +331,22 @@ camber.onState(({ state, sidebarOpen, offerArc, tabId, extensionsVersion, nav, p
     f.onclick = (e) => { document.body.classList.remove('palette'); camber.send(e.shiftKey ? 'peek' : 'select', t.id) }
     return f
   }))
-  const sep = el('div', 'sep')
-  sep.dataset.drop = 'pinned'
-  box.append(sep)
-  const nt = el('div', 'row muted')
-  nt.dataset.drop = 'today'
-  nt.append(el('div', 'icon plus', '+'), el('span', '', 'New Tab'))
-  nt.onclick = () => camber.send('openPalette', 'new')
-  box.append(nt)
-  s.today.forEach((t) => box.append(sidebarRow(t, s.activeId, true)))
+  // a rename in progress keeps the list as it is until it ends, unless the space changes
+  const box = $('tabs')
+  if (!box.querySelector('input') || box.dataset.space !== s.id) {
+    box.dataset.space = s.id
+    box.replaceChildren()
+    renderItems(s.pinned, box, s.activeId)
+    const sep = el('div', 'sep')
+    sep.dataset.drop = 'pinned'
+    box.append(sep)
+    const nt = el('div', 'row muted')
+    nt.dataset.drop = 'today'
+    nt.append(el('div', 'icon plus', '+'), el('span', '', 'New Tab'))
+    nt.onclick = () => camber.send('openPalette', 'new')
+    box.append(nt)
+    s.today.forEach((t) => box.append(sidebarRow(t, s.activeId, true)))
+  }
 
   const bar = $('spaces')
   bar.replaceChildren()
@@ -335,7 +361,7 @@ camber.onState(({ state, sidebarOpen, offerArc, tabId, extensionsVersion, nav, p
   add.title = 'New space'
   add.onclick = () => camber.send('newSpace')
   bar.append(add)
-})
+}
 
 // drag to reorder: a tab row takes the drop above or below itself, a folder row above itself
 // or inside, the line under the pinned tabs means "pin at the end", New Tab "unpin at the top"

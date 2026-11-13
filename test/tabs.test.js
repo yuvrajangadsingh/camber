@@ -1,6 +1,6 @@
 const test = require('node:test')
 const assert = require('node:assert')
-const { touch, forget, afterClose, move, prune, idle, web, loadable, navigable, permKeys, permission, checked, permOrigin, asker, pairOk, route: tabsRoute } = require('../tabs')
+const { touch, forget, afterClose, move, rename, prune, idle, web, loadable, navigable, permKeys, permission, checked, permOrigin, asker, pairOk, route: tabsRoute } = require('../tabs')
 
 test('closing a tab goes back to the one used before it', () => {
   let mru = []
@@ -75,6 +75,27 @@ test('drag and drop moves tabs within and across pinned, folders and today', () 
   s = space()
   for (const [id, target] of [['f', 'today'], ['nope', 'p1'], ['t1', 'nope'], ['t1', 't1']]) assert.strictEqual(move(s, id, target, 'before'), false)
   assert.deepStrictEqual(s, space())
+})
+
+test('tabs and folders take a name of their own, and an empty one gives a tab its title back', () => {
+  const s = {
+    pinned: [{ id: 'f', title: 'Work', open: true, children: [{ id: 'a', url: 'https://a.example', title: 'A page' }] }],
+    today: [{ id: 'b', url: 'https://b.example', title: 'B page' }],
+  }
+  assert.ok(rename(s, 'a', '  Mail  '))
+  assert.strictEqual(s.pinned[0].children[0].name, 'Mail')
+  assert.ok(rename(s, 'b', 'x'.repeat(150)))
+  assert.strictEqual(s.today[0].name.length, 100)
+  assert.ok(rename(s, 'a', ' '))
+  assert.ok(!('name' in s.pinned[0].children[0]))
+  assert.strictEqual(s.pinned[0].children[0].title, 'A page')
+  assert.ok(rename(s, 'f', 'Side'))
+  assert.strictEqual(s.pinned[0].title, 'Side')
+  // a folder never goes blank, and an id that isn't in the space changes nothing
+  assert.ok(!rename(s, 'f', ''))
+  assert.strictEqual(s.pinned[0].title, 'Side')
+  assert.ok(!rename(s, 'zzz', 'New'))
+  assert.ok(!rename(s, 'a', { toString: null }))
 })
 
 test('archives today tabs that sat unused past the limit', () => {
