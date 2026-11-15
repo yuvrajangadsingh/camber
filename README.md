@@ -200,6 +200,9 @@ this is what the sidebar costs with its tabs asleep.
 
 ## Known gaps
 
+- Google sign-in: Google's browser check lets camber through to the account (before,
+  it said "This browser or app may not be secure" after the email). Finishing a
+  sign-in, with a password or a passkey, is untested.
 - 1Password: installing it opens its sign-in page (before, the popup showed only its
   logo, with no way to sign in). Signing in, unlocking, filling and the link to the
   desktop app are untested. Bitwarden installs and opens; autofill with a logged-in

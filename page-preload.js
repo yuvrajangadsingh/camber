@@ -1,6 +1,38 @@
 // Password save and fill, in the top frame of every page. This runs in the preload's own world: the
 // page can't see these functions or reach the ipc, and main.js takes the site from the frame, not from here.
-const { ipcRenderer } = require('electron')
+const { contextBridge, ipcRenderer } = require('electron')
+
+// Google's sign-in answered "This browser or app may not be secure" right after the email, for every
+// account, until pages had the window.chrome csi, loadTimes and app that Chrome has and Electron leaves
+// out (Nov 15 2026: a made-up address went to /signin/rejected without them, to "Couldn't find this
+// account" with them). So web pages get them where missing, read from the page's own navigation.
+// ponytail: top frame only, like the rest of this file; a frame doesn't get them
+if (/^https?:$/.test(location.protocol)) contextBridge.executeInMainWorld({
+  func: () => {
+    const c = (window.chrome ??= {})
+    const t = performance.timing, s = (ms) => ms / 1000
+    const nav = () => performance.getEntriesByType('navigation')[0]
+    const kind = () => ({ reload: ['Reload', 16], back_forward: ['BackForward', 6] })[nav()?.type] || ['Other', 15]
+    c.csi ??= () => ({ startE: t.navigationStart, onloadT: t.domContentLoadedEventEnd, pageT: performance.now(), tran: kind()[1] })
+    c.loadTimes ??= () => {
+      const paint = performance.getEntriesByName('first-paint', 'paint')[0], proto = nav()?.nextHopProtocol || 'unknown'
+      return {
+        requestTime: s(t.navigationStart), startLoadTime: s(t.navigationStart), commitLoadTime: s(t.responseStart),
+        finishDocumentLoadTime: s(t.domContentLoadedEventEnd), finishLoadTime: s(t.loadEventEnd),
+        firstPaintTime: paint ? s(t.navigationStart + paint.startTime) : 0, firstPaintAfterLoadTime: 0,
+        navigationType: kind()[0], wasFetchedViaSpdy: /^h[23]/.test(proto), wasNpnNegotiated: location.protocol === 'https:' && proto !== 'unknown',
+        npnNegotiatedProtocol: proto, wasAlternateProtocolAvailable: false, connectionInfo: proto,
+      }
+    }
+    c.app ??= {
+      isInstalled: false,
+      InstallState: { DISABLED: 'disabled', INSTALLED: 'installed', NOT_INSTALLED: 'not_installed' },
+      RunningState: { CANNOT_RUN: 'cannot_run', READY_TO_RUN: 'ready_to_run', RUNNING: 'running' },
+      getDetails: () => null, getIsInstalled: () => false, runningState: () => 'cannot_run',
+      installState: (cb) => { setTimeout(() => cb?.('not_installed')) },
+    }
+  },
+})
 
 const TEXT = ['text', 'email', 'tel']
 const shown = (el) => el.getClientRects().length > 0
