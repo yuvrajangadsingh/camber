@@ -3,6 +3,33 @@
 Newest first. Installers and the full notes are on the
 [releases page](https://github.com/yuvrajangadsingh/camber/releases).
 
+## 0.5.0 (2026-11-16)
+
+DRM video, Boosts, renaming, reopening closed tabs, password import, and getting into
+Google and 1Password.
+
+- Widevine: camber now runs on castLabs' Electron 45.2.1, which has the Widevine
+  module, signed for streaming on macOS and Windows. Google's Widevine test stream
+  plays on macOS (Apple Silicon). Netflix, Prime Video, Disney+ and Spotify are untested.
+- Chromium 156.0.8078.75, a few upstream fixes behind 0.4.1's 156.0.8078.96: castLabs
+  hasn't shipped its Electron 45.3 yet. camber moves to it when they do.
+- Boosts: Tab > Boost This Site… (or "boost" in the command bar) edits the site's own
+  CSS in the sidebar, and the page changes as you type.
+- Double-click a tab or folder to rename it.
+- Cmd+Shift+T reopens the last closed tab; Tab > Archived Tabs… lists the closed and
+  archived ones to search and reopen.
+- Drag a tab or folder onto another space to move it there.
+- File > Passwords > Import from CSV… takes a password export from Chrome, Arc, Edge,
+  Brave, Firefox, Safari, 1Password or Bitwarden.
+- Google sign-in gets past "This browser or app may not be secure" to the account.
+  Finishing a sign-in is untested.
+- 1Password: installing it opens its sign-in page, and its extension can open and close
+  camber's tabs. Signing in with a real account is untested.
+- Tried on macOS (Apple Silicon). Windows and Linux only start in CI.
+
+Known gaps: nothing is signed by Apple or Microsoft; Netflix and other streaming sites
+untested; Apple Passwords doesn't work; no Windows arm64 build, no sync or Live Folders.
+
 ## 0.4.1 (2026-11-11)
 
 Electron 45.3.0, and a first fix for password manager extensions.

@@ -213,10 +213,10 @@ this is what the sidebar costs with its tabs asleep.
   takes one address per login (1Password 7's extra URLS column is skipped).
 - No code signing, no Windows arm64 build. Updates install themselves only on Windows
   and the AppImage (from the next release on); macOS and the .deb get a note in the sidebar.
-- No Widevine: Netflix, Prime Video, Disney+ and Spotify web do not play (stock
-  Electron ships no DRM module).
+- Widevine (DRM video): Google's Widevine test stream plays on macOS (Apple Silicon).
+  Netflix, Prime Video, Disney+ and Spotify web are untested, and so are Windows and Linux.
 - No USB, HID, serial, Bluetooth or screen sharing: sites asking for them are refused.
-- No sync, Boosts or Live Folders.
+- No sync or Live Folders.
 
 ## Remote debugging
 
