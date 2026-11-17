@@ -391,6 +391,8 @@ function viewFor(t, adopt) {
   // clicking the other pane of a split makes it the active tab
   wc.on('before-mouse-event', (_, m) => { if (m.type === 'mouseDown' && pair()?.includes(t.id) && space().activeId !== t.id) select(t.id) })
   wc.setWindowOpenHandler(popups(newTab))
+  // window.close() in the page closes the tab; dropView takes the view out first, so its own close() doesn't
+  wc.on('close', () => views.get(t.id) === v && closeTab(t.id))
   if (!adopt) guard(wc) // a peek was guarded when it opened
   extensionsFor(profile).addTab(wc, win)
   win.contentView.addChildView(v)
@@ -425,9 +427,9 @@ function dropView(id) {
   for (const s of state.spaces) if (s.split?.includes(id)) s.split = null
   const v = views.get(id)
   if (!v) return
-  win.contentView.removeChildView(v)
-  v.webContents.close()
   views.delete(id)
+  win.contentView.removeChildView(v)
+  if (!v.webContents.isDestroyed()) v.webContents.close()
 }
 
 // closing a pinned tab only unloads it, like Arc; closing a today tab removes it.
@@ -590,7 +592,9 @@ function little(url) {
     if (!url) { bar.webContents.focus(); bar.webContents.send('palette') }
   })
   wc.loadURL(l.url)
-  w.on('closed', () => { littles.delete(w); wc.close(); bar.webContents.close() })
+  // window.close() in the page closes the window
+  wc.on('close', () => w.isDestroyed() || w.close())
+  w.on('closed', () => { littles.delete(w); if (!wc.isDestroyed()) wc.close(); bar.webContents.close() })
   return w
 }
 
@@ -687,6 +691,7 @@ async function openPeek(id) {
   wc.on('did-navigate-in-page', (_, url, main) => { if (main) { p.url = url; render() } })
   wc.on('before-input-event', (e, i) => { if (peek === p && i.type === 'keyDown' && i.key === 'Escape') { e.preventDefault(); closePeek() } })
   wc.setWindowOpenHandler(popups((u) => wc.loadURL(u)))
+  wc.on('close', () => peek === p && closePeek())
   guard(wc)
   win.contentView.addChildView(ui)
   win.contentView.addChildView(p.view)
@@ -701,9 +706,10 @@ async function openPeek(id) {
 
 // keep: the view lives on as a tab (peekToTab), so it is not closed
 function closePeek(keep) {
-  if (!peek) return
-  if (!keep) { win.contentView.removeChildView(peek.view); peek.view.webContents.close() }
+  const p = peek
+  if (!p) return
   peek = null
+  if (!keep) { win.contentView.removeChildView(p.view); if (!p.view.webContents.isDestroyed()) p.view.webContents.close() }
   win.contentView.removeChildView(ui)
   win.contentView.addChildView(ui, 0)
   render()
