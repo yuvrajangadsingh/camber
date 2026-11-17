@@ -3,6 +3,18 @@
 Newest first. Installers and the full notes are on the
 [releases page](https://github.com/yuvrajangadsingh/camber/releases).
 
+## 0.5.1 (2026-11-17)
+
+Sign-in popups, and a crash when a page closes itself.
+
+- A site's popup (a "Sign in with Google" or Apple window, a card check) opens in a
+  little window and can answer the page that opened it. Before, it became a tab the
+  page couldn't reach, so those sign-ins never finished. Tried with a test page on
+  macOS (Apple Silicon); a real third-party sign-in is untested.
+- A page that closes itself now closes its tab, peek or little window. Before, the tab
+  stayed with nothing in it and camber showed a JavaScript error over the window.
+- Links, shift-clicks and bare new windows from a tab still open as tabs.
+
 ## 0.5.0 (2026-11-16)
 
 DRM video, Boosts, renaming, reopening closed tabs, password import, and getting into
