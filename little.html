@@ -29,8 +29,9 @@
 <button id="open" title="Open in camber (⌘O)">Open in camber</button>
 <script>
 const $ = (id) => document.getElementById(id)
-camber.onState(({ url, back, mac }) => {
+camber.onState(({ url, back, mac, popup }) => {
   document.body.classList.toggle('mac', mac)
+  $('open').hidden = popup
   $('back').disabled = !back
   if (document.activeElement !== $('url')) $('url').value = url === 'about:blank' ? '' : url
 })

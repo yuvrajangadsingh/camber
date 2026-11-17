@@ -113,7 +113,9 @@ Pop out video when leaving a tab).
 File > Make camber the Default Browser sends links from other apps to camber.
 On Linux, if that doesn't stick, run
 `xdg-settings set default-web-browser camber.desktop`. A link from outside opens
-in a little window; Open in camber (Cmd+O) moves it into the current space.
+in a little window; Open in camber (Cmd+O) moves it into the current space. A site's
+popup (a "Sign in with" or payment window) opens in a little window too, and goes
+back to the page that opened it. From a tab, a link that wants a new tab or window gets a tab.
 
 Each space has a profile, and each profile is its own session, so logins stay
 apart. Spaces can share a profile, like in Arc.

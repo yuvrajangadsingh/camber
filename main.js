@@ -82,8 +82,20 @@ const waiting = []
 const linksIn = (argv) => argv.filter(tabs.web)
 // outside input that isn't http(s) is dropped here, before it can reach a loadURL
 const allowed = (url) => tabs.web(url) || void console.warn('camber: dropped a non-web URL:', String(url).slice(0, 80))
-// window.open from a page never makes a window; an allowed URL goes to `open` instead
-const popups = (open) => ({ url }) => { if (allowed(url)) open(url); return { action: 'deny' } }
+// window.open from a page asking for a window (a size, or "popup": a sign-in or payment popup) opens in a
+// little window and stays the page's popup, so it can answer its opener and close itself. Any other allowed
+// URL (a target=_blank link, a shift-click, a bare window.open) goes to `open`.
+const popups = (open) => ({ url, disposition, features }) => {
+  if (!allowed(url)) return { action: 'deny' }
+  if (disposition === 'new-window' && features) return {
+    action: 'allow',
+    // the popup shares its opener's session but not its preload, which is what saves passwords and lets Google sign in
+    overrideBrowserWindowOptions: { webPreferences: { preload: path.join(__dirname, 'page-preload.js') } },
+    createWindow: (opened) => littles.get(little(url, opened)).page.webContents,
+  }
+  open(url)
+  return { action: 'deny' }
+}
 // the one gate for every page camber loads (typed, restored, imported, extension-made); a page's own
 // navigations and redirects get tabs.navigable. No file:, data:, javascript: or chrome: page ever loads
 const loadable = (url) => tabs.loadable(url) || void console.warn('camber: did not load', String(url).slice(0, 80))
@@ -316,7 +328,10 @@ function extensionsFor(profile) {
     removeTab(wc) {
       const id = tabOf(wc)
       if (id) closeTab(id)
+      else if (ownerOf(wc) !== win) ownerOf(wc).close() // a popup in its little window
     },
+    // the library's own destroy() throws on a window that is already closing (a popup closed from its title bar)
+    removeWindow: (w) => w.isDestroyed() || w.close(),
   })
   for (const type of ['frame', 'service-worker']) ses.registerPreloadScript({ id: 'browser-alias-' + type, type, filePath: path.join(__dirname, 'extension-preload.js') })
   // Electron never fires runtime.onInstalled, so an extension's worker asks once
@@ -562,10 +577,12 @@ function setArchiveHours(h) {
 // the current space's profile so logins work. Open in camber (Cmd+O) moves it into the space.
 const littles = new Map() // BaseWindow -> { bar, page, url }
 const BAR = 38
-function little(url) {
-  const w = new BaseWindow({ width: 900, height: 640, center: true, ...(MAC ? { titleBarStyle: 'hiddenInset', trafficLightPosition: { x: 12, y: 12 } } : { autoHideMenuBar: true }) })
+// `opened`: a page's popup (see popups), whose page Electron made, on the opener's profile
+function little(url, opened) {
+  const w = new BaseWindow({ width: opened?.width || 900, height: (opened?.height || 602) + BAR, useContentSize: true,
+    ...(opened?.x != null && opened?.y != null ? { x: opened.x, y: opened.y } : { center: true }), ...(MAC ? { titleBarStyle: 'hiddenInset', trafficLightPosition: { x: 12, y: 12 } } : { autoHideMenuBar: true }) })
   const bar = new WebContentsView({ webPreferences: { preload: path.join(__dirname, 'preload.js'), sandbox: false } })
-  const page = pageView(space().profile)
+  const page = opened ? new WebContentsView({ webContents: opened.webContents, webPreferences: opened.webPreferences }) : pageView(space().profile)
   w.contentView.addChildView(page)
   w.contentView.addChildView(bar)
   const fit = () => {
@@ -576,24 +593,26 @@ function little(url) {
   fit()
   w.on('resize', fit)
   const wc = page.webContents
-  const l = { bar, page, url: url || 'about:blank' }
+  const l = { bar, page, url: url || 'about:blank', popup: !!opened }
   littles.set(w, l)
   // a page that failed to load (bad host, offline) has no URL, so the one asked for stands in
-  const sync = () => bar.webContents.send('state', { url: wc.getURL() || l.url, back: wc.navigationHistory.canGoBack(), mac: MAC })
+  const sync = () => bar.webContents.send('state', { url: wc.getURL() || l.url, back: wc.navigationHistory.canGoBack(), mac: MAC, popup: l.popup })
   wc.on('did-navigate', sync)
   wc.on('did-navigate-in-page', sync)
   wc.on('page-title-updated', (_, title) => w.setTitle(title))
-  // links that want a new window stay in this one
-  wc.setWindowOpenHandler(popups((u) => wc.loadURL(u)))
+  // links that want a new window stay in this one; a popup's go to tabs, so it isn't replaced mid sign-in
+  wc.setWindowOpenHandler(popups(opened ? newTab : (u) => wc.loadURL(u)))
+  // a popup is a tab to extensions, as it was when popups became tabs (a password manager fills it)
+  if (opened) extensionsFor(state.spaces.find((s) => session.fromPartition('persist:' + s.profile) === wc.session)?.profile || space().profile).addTab(wc, w)
   guard(wc)
   bar.webContents.loadFile('little.html')
   bar.webContents.once('did-finish-load', () => {
     sync()
     if (!url) { bar.webContents.focus(); bar.webContents.send('palette') }
   })
-  wc.loadURL(l.url)
-  // window.close() in the page closes the window
-  wc.on('close', () => w.isDestroyed() || w.close())
+  if (!opened) wc.loadURL(l.url) // a popup's page is already on its way
+  // the page ending closes the window: window.close() (a popup that's done), or a popup's opener going
+  wc.once('destroyed', () => w.isDestroyed() || w.close())
   w.on('closed', () => { littles.delete(w); if (!wc.isDestroyed()) wc.close(); bar.webContents.close() })
   return w
 }
@@ -604,6 +623,7 @@ const focusedLittle = () => { const w = BaseWindow.getFocusedWindow(); return li
 
 function intoCamber(w) {
   const l = littles.get(w)
+  if (l.popup) return // a new tab would lose the opener the popup answers to
   const url = l.page.webContents.getURL() || l.url
   w.close()
   if (!url || url === 'about:blank') return
