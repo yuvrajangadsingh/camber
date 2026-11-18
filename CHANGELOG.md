@@ -3,6 +3,22 @@
 Newest first. Installers and the full notes are on the
 [releases page](https://github.com/yuvrajangadsingh/camber/releases).
 
+## 0.6.0 (2026-11-19)
+
+The browser basics camber was missing, and spaces that switch the way Arc's do.
+
+- Right-click a page for the usual menu: open a link in a new tab or a little window,
+  copy a link or an image, save an image, cut, copy and paste in a text field, search
+  for selected text, spelling suggestions, extensions' own items, and Inspect. Before,
+  right-clicking a page did nothing.
+- Find in page: Cmd+F opens a find box at the top right of the page with a "2 of 3"
+  count; Enter or Cmd+G for the next match, Shift for the previous, Esc to close.
+- Zoom (Cmd+=, Cmd+-, Cmd+0) and print (Cmd+P).
+- Spaces switch like Arc: Cmd+Option+Left/Right on a Mac (was Cmd+Ctrl), Ctrl+1 to
+  Ctrl+9 to jump to a space, and a two-finger swipe across the sidebar.
+- Tried on macOS (Apple Silicon) with test pages. The keys were checked through the
+  menu, not pressed; a real trackpad swipe, Windows and Linux are untested.
+
 ## 0.5.1 (2026-11-17)
 
 Sign-in popups, and a crash when a page closes itself.
