@@ -89,6 +89,8 @@ Cmd on macOS, Ctrl on Linux and Windows.
 | Cmd+D | pin or unpin |
 | Cmd+R, Cmd+[, Cmd+] | reload, back, forward |
 | Cmd+S | toggle sidebar |
+| Cmd+=, Cmd+-, Cmd+0 | zoom in, zoom out, actual size |
+| Cmd+P | print |
 | Cmd+Shift+N | little window |
 | Cmd+O | move the little window's page (or a peek) into the current space |
 | Cmd+Shift+\ | close split view |

@@ -756,6 +756,14 @@ function closePalette() {
 }
 
 const current = () => views.get(space().activeId)?.webContents
+// Chrome's zoom steps; Chromium keeps one zoom per site
+const ZOOMS = [0.25, 0.33, 0.5, 0.67, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4, 5]
+function zoom(d) {
+  const wc = target()
+  if (!wc) return
+  const f = wc.getZoomFactor()
+  wc.setZoomFactor(d > 0 ? ZOOMS.find((z) => z > f + 0.001) ?? 5 : d < 0 ? ZOOMS.findLast((z) => z < f - 0.001) ?? 0.25 : 1)
+}
 // the menu's back/forward/reload act on what is in front: a little window, else the peek
 const target = () => littles.get(focusedLittle())?.page.webContents || peek?.view.webContents || current()
 const back = () => target()?.navigationHistory.goBack()
@@ -845,6 +853,8 @@ function menu() {
         { label: 'Passwords', submenu: passwordMenu() },
         { type: 'separator' },
         item('Make camber the Default Browser', undefined, makeDefault),
+        { type: 'separator' },
+        item('Print…', 'CmdOrCtrl+P', () => target()?.print()),
       ],
     },
     { role: 'editMenu' },
@@ -897,6 +907,11 @@ function menu() {
         ...(MAC ? [1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) =>
           ({ ...item('Space ' + n, 'Ctrl+' + n, () => state.spaces[n - 1] && showSpace(n - 1)), visible: false })) : []),
         item('Toggle Sidebar', 'CmdOrCtrl+S', toggleSidebar),
+        { type: 'separator' },
+        item('Actual Size', 'CmdOrCtrl+0', () => zoom(0)),
+        item('Zoom In', 'CmdOrCtrl+=', () => zoom(1)),
+        { ...item('Zoom In', 'CmdOrCtrl+Plus', () => zoom(1)), visible: false },
+        item('Zoom Out', 'CmdOrCtrl+-', () => zoom(-1)),
         { role: 'toggleDevTools' },
       ],
     },
