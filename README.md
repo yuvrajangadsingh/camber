@@ -92,7 +92,8 @@ Cmd on macOS, Ctrl on Linux and Windows.
 | Cmd+Shift+N | little window |
 | Cmd+O | move the little window's page (or a peek) into the current space |
 | Cmd+Shift+\ | close split view |
-| Cmd+Ctrl+Left/Right (Ctrl+Alt on Linux/Windows) | previous/next space |
+| Cmd+Option+Left/Right (Ctrl+Alt on Linux/Windows), or a two-finger swipe in the sidebar | previous/next space |
+| Ctrl+1 to Ctrl+9 (macOS) | go to space 1 to 9 |
 
 Drag tabs to reorder them; dropping a tab among the pinned ones pins it, and
 dropping a pinned tab under New Tab unpins it. Drop a tab or a folder on another

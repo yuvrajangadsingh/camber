@@ -51,7 +51,7 @@
   #space-name { font-weight: 600; font-size: 12px; letter-spacing: .02em; color: var(--muted); padding: 14px 8px 6px; }
   .row span:has(> input) { flex: 1; overflow: visible; }
   #space-name input, .row input { width: 100%; margin: -3px 0 -3px -4px; padding: 2px 4px; border: 0; border-radius: 5px; outline: 1.5px solid var(--c); font: inherit; letter-spacing: inherit; color: var(--text); background: var(--active); }
-  #tabs { flex: 1; overflow-y: auto; margin: 0 -2px; padding: 0 2px; }
+  #tabs { flex: 1; overflow-y: auto; overflow-x: hidden; margin: 0 -2px; padding: 0 2px; }
   body.boosting #tabs { display: none; }
   #boost { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; padding: 4px 2px 10px; }
   #boost[hidden] { display: none; }
@@ -286,6 +286,16 @@ $('space-name').ondblclick = () => {
   editInline($('space-name'), s.name, 'renameSpace', s.id)
 }
 for (const [id, cmd] of [['nav-menu', 'appMenu'], ['nav-sidebar', 'toggleSidebar'], ['nav-back', 'back'], ['nav-forward', 'forward'], ['nav-reload', 'reload']]) $(id).onclick = () => camber.send(cmd)
+// a two-finger swipe across the sidebar switches spaces, like Arc: one switch per swipe, and the
+// next only after the fingers (and the trackpad's momentum) have rested
+let swipeX = 0, swipeRest
+$('sidebar').addEventListener('wheel', (e) => {
+  clearTimeout(swipeRest)
+  swipeRest = setTimeout(() => (swipeX = 0), 250)
+  if (swipeX === null || Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return
+  swipeX += e.deltaX
+  if (Math.abs(swipeX) > 60) { camber.send('moveSpace', Math.sign(swipeX)); swipeX = null }
+}, { passive: true })
 const ICONS = { reload: '<path d="M15.5 10a5.5 5.5 0 1 1-1.6-3.9"/><path d="M15.5 3.5v3.2h-3.2"/>', stop: '<path d="M5.5 5.5l9 9M14.5 5.5l-9 9"/>' }
 
 let actionsKey

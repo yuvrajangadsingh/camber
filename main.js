@@ -787,6 +787,7 @@ const commands = {
     else newTab(url)
   },
   showSpace: (i) => state.spaces[i] && showSpace(i),
+  moveSpace: (d) => (d === 1 || d === -1) && moveSpace(d),
   back,
   forward,
   reload,
@@ -890,8 +891,11 @@ function menu() {
     {
       label: 'View',
       submenu: [
-        item('Next Space', MAC ? 'Cmd+Ctrl+Right' : 'Ctrl+Alt+Right', () => moveSpace(1)),
-        item('Previous Space', MAC ? 'Cmd+Ctrl+Left' : 'Ctrl+Alt+Left', () => moveSpace(-1)),
+        item('Next Space', MAC ? 'Cmd+Alt+Right' : 'Ctrl+Alt+Right', () => moveSpace(1)),
+        item('Previous Space', MAC ? 'Cmd+Alt+Left' : 'Ctrl+Alt+Left', () => moveSpace(-1)),
+        // Arc's Ctrl+1 to 9 on a Mac; a hidden item keeps its shortcut there
+        ...(MAC ? [1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) =>
+          ({ ...item('Space ' + n, 'Ctrl+' + n, () => state.spaces[n - 1] && showSpace(n - 1)), visible: false })) : []),
         item('Toggle Sidebar', 'CmdOrCtrl+S', toggleSidebar),
         { role: 'toggleDevTools' },
       ],
