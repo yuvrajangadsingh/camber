@@ -208,7 +208,9 @@ function render() {
   const nav = { back: !!wc?.navigationHistory.canGoBack(), forward: !!wc?.navigationHistory.canGoForward(), loading: !!wc?.isLoading() }
   const notice = update && state.dismissedUpdate !== update.version ? update : null
   const pane = pair() && paneBounds(space().activeId)
-  ui.webContents.send('state', { state: { ...state, boosts: undefined }, sidebarOpen, offerArc, tabId: wc?.id, extensionsVersion, nav, platform: process.platform, update: notice, beta: !DEMO && !state.betaDismissed, pane, peek: peek && { url: peek.url, ...peekBounds() } })
+  const fb = finding && paneBounds(space().activeId)
+  const find = fb && { text: finding.text, matches: finding.matches, active: finding.active, x: fb.x, y: fb.y - FIND, width: fb.width, height: FIND - GAP }
+  ui.webContents.send('state', { state: { ...state, boosts: undefined }, sidebarOpen, offerArc, tabId: wc?.id, extensionsVersion, nav, platform: process.platform, update: notice, beta: !DEMO && !state.betaDismissed, pane, peek: peek && { url: peek.url, ...peekBounds() }, find })
   saveSoon()
 }
 const saveSoon = () => { clearTimeout(saveTimer); saveTimer = setTimeout(save, 500) }
@@ -218,10 +220,14 @@ const saveSoon = () => { clearTimeout(saveTimer); saveTimer = setTimeout(save, 5
 const MAC = process.platform === 'darwin'
 const CAPTION = 40
 
+// Find in page (Cmd+F): the page moves down to make room for the find bar, which ui.html draws in that strip
+const FIND = 40
+let finding = null // { wc, text, req, matches, active }, for one tab
+
 const contentBounds = () => {
   const { width, height } = win.getContentBounds()
   const x = sidebarOpen ? SIDEBAR : GAP
-  const y = MAC ? GAP : CAPTION
+  const y = (MAC ? GAP : CAPTION) + (finding ? FIND : 0)
   return { x, y, width: width - x - GAP, height: height - y - GAP }
 }
 
@@ -284,6 +290,8 @@ function pip(wc, pop) {
 let shownSpace
 let onScreen = new Set()
 function layout() {
+  // the find bar belongs to one tab: showing another closes it
+  if (finding && finding.wc !== current()) { if (!finding.wc.isDestroyed()) finding.wc.stopFindInPage('clearSelection'); finding = null }
   if (shownSpace && shownSpace !== space()) { shownSpace.split = null; closePeek() }
   shownSpace = space()
   win.setBackgroundColor(space().color)
@@ -402,6 +410,13 @@ function viewFor(t, adopt) {
   wc.on('did-start-loading', render)
   wc.on('did-stop-loading', render)
   wc.on('dom-ready', () => boostPage(wc))
+  wc.on('found-in-page', (_, r) => {
+    // only the answer to the latest request: an older, slower one would count the wrong text
+    if (finding?.wc !== wc || r.requestId !== finding.req) return
+    if (r.activeMatchOrdinal >= 0) finding.active = r.activeMatchOrdinal
+    if (r.finalUpdate) finding.matches = r.matches
+    render()
+  })
   if (adopt) boostPage(wc) // a peek turned tab is past its dom-ready
   // clicking the other pane of a split makes it the active tab
   wc.on('before-mouse-event', (_, m) => { if (m.type === 'mouseDown' && pair()?.includes(t.id) && space().activeId !== t.id) select(t.id) })
@@ -675,6 +690,7 @@ async function backdrop() {
 
 async function openPalette(mode) {
   if (paletteOpen || peek) return
+  closeFind() // its box would stay clickable beside the palette, and closing it would hand focus to the page underneath
   paletteOpen = true
   const snap = await backdrop()
   if (!paletteOpen) return // closed meanwhile (Cmd+Shift+T)
@@ -702,6 +718,7 @@ const fitPeek = () => {
 async function openPeek(id) {
   const t = find(id)?.t
   if (!t || peek || paletteOpen || !allowed(t.url)) return
+  closeFind() // as for the palette
   const p = peek = { view: pageView(space().profile), url: t.url, source: id }
   const snap = await backdrop()
   if (peek !== p) return
@@ -758,6 +775,32 @@ function closePalette() {
 const current = () => views.get(space().activeId)?.webContents
 // Chrome's zoom steps; Chromium keeps one zoom per site
 const ZOOMS = [0.25, 0.33, 0.5, 0.67, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4, 5]
+function openFind() {
+  const wc = current()
+  if (!wc || peek || paletteOpen || focusedLittle()) return
+  if (!finding) { finding = { wc, text: '', req: 0, matches: 0, active: 0 }; layout(); render() }
+  ui.webContents.focus()
+  ui.webContents.send('find')
+}
+// a new text starts a new search; the same text again steps to the next (or previous) match
+function findText(text, forward) {
+  if (!finding || finding.wc.isDestroyed()) return
+  const again = text === finding.text
+  finding.text = text
+  if (!text) { finding.wc.stopFindInPage('clearSelection'); finding.req = finding.matches = finding.active = 0; return render() }
+  finding.req = finding.wc.findInPage(text, { forward, findNext: !again })
+}
+// Cmd+G and Shift+Cmd+G, only while the tab is what's in front
+const findStep = (forward) => finding && !peek && !paletteOpen && !focusedLittle() && findText(finding.text, forward)
+function closeFind() {
+  if (!finding) return
+  const { wc } = finding
+  finding = null
+  if (!wc.isDestroyed()) wc.stopFindInPage('clearSelection')
+  layout()
+  render()
+  if (wc === current()) wc.focus()
+}
 function zoom(d) {
   const wc = target()
   if (!wc) return
@@ -796,6 +839,8 @@ const commands = {
   },
   showSpace: (i) => state.spaces[i] && showSpace(i),
   moveSpace: (d) => (d === 1 || d === -1) && moveSpace(d),
+  find: (text, forward) => findText(String(text ?? ''), forward !== false),
+  closeFind,
   back,
   forward,
   reload,
@@ -875,6 +920,9 @@ function menu() {
         item('Clear Archived Tabs', undefined, () => { closePalette(); state.archived = []; render() }),
         item('New Little Window', 'CmdOrCtrl+Shift+N', () => little()),
         item('Open in camber', 'CmdOrCtrl+O', () => { const w = focusedLittle(); if (w) intoCamber(w); else peekToTab() }),
+        item('Find in Page…', 'CmdOrCtrl+F', openFind),
+        item('Find Next', 'CmdOrCtrl+G', () => findStep(true)),
+        item('Find Previous', 'CmdOrCtrl+Shift+G', () => findStep(false)),
         item('Reload', 'CmdOrCtrl+R', reload),
         item('Back', 'CmdOrCtrl+[', back),
         item('Forward', 'CmdOrCtrl+]', forward),

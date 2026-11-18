@@ -84,6 +84,7 @@ Cmd on macOS, Ctrl on Linux and Windows.
 | --- | --- |
 | Cmd+T | command bar: URL, DuckDuckGo search, or jump to an open tab |
 | Cmd+L | edit the current tab's URL |
+| Cmd+F, Cmd+G, Shift+Cmd+G | find in page, next match, previous match |
 | Cmd+W | close tab (pinned tabs just unload) |
 | Cmd+Shift+T | reopen the last closed or archived tab |
 | Cmd+D | pin or unpin |
