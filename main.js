@@ -1,4 +1,4 @@
-const { app, BaseWindow, WebContentsView, Menu, dialog, ipcMain, session, nativeTheme, net, shell, safeStorage, clipboard, webContents, components } = require('electron')
+const { app, BaseWindow, WebContentsView, Menu, MenuItem, dialog, ipcMain, session, nativeTheme, net, shell, safeStorage, clipboard, webContents, components } = require('electron')
 const { ElectronChromeExtensions } = require('electron-chrome-extensions')
 const { installChromeWebStore } = require('electron-chrome-web-store')
 const fs = require('node:fs')
@@ -421,6 +421,7 @@ function viewFor(t, adopt) {
   // clicking the other pane of a split makes it the active tab
   wc.on('before-mouse-event', (_, m) => { if (m.type === 'mouseDown' && pair()?.includes(t.id) && space().activeId !== t.id) select(t.id) })
   wc.setWindowOpenHandler(popups(newTab))
+  pageMenu(wc)
   // window.close() in the page closes the tab; dropView takes the view out first, so its own close() doesn't
   wc.on('close', () => views.get(t.id) === v && closeTab(t.id))
   if (!adopt) guard(wc) // a peek was guarded when it opened
@@ -617,6 +618,7 @@ function little(url, opened) {
   wc.on('page-title-updated', (_, title) => w.setTitle(title))
   // links that want a new window stay in this one; a popup's go to tabs, so it isn't replaced mid sign-in
   wc.setWindowOpenHandler(popups(opened ? newTab : (u) => wc.loadURL(u)))
+  pageMenu(wc)
   // a popup is a tab to extensions, as it was when popups became tabs (a password manager fills it)
   if (opened) extensionsFor(state.spaces.find((s) => session.fromPartition('persist:' + s.profile) === wc.session)?.profile || space().profile).addTab(wc, w)
   guard(wc)
@@ -679,7 +681,53 @@ function toURL(text) {
   text = text.trim()
   if (/^[a-z][a-z0-9+.-]*:/i.test(text) && !/\s/.test(text)) return text
   if (!/\s/.test(text) && (text.includes('.') || text.startsWith('localhost'))) return 'https://' + text
-  return 'https://duckduckgo.com/?q=' + encodeURIComponent(text)
+  return search(text)
+}
+const search = (text) => 'https://duckduckgo.com/?q=' + encodeURIComponent(text.trim())
+
+// Right-click on a page (a tab, a peek, a little window): Chrome's basics for spelling, links, images,
+// text fields and selected text, else back/forward/reload; then extensions' own items, then Inspect
+const menued = new WeakSet() // a peek moved into a tab keeps its page, and its one menu
+function pageMenu(wc) {
+  if (menued.has(wc)) return
+  menued.add(wc)
+  wc.on('context-menu', (_, p) => {
+    const sep = { type: 'separator' }
+    const act = (label, click, enabled = true) => ({ label, click, enabled })
+    const items = []
+    if (p.misspelledWord) {
+      items.push(...p.dictionarySuggestions.slice(0, 5).map((w) => act(w, () => wc.replaceMisspelling(w))))
+      items.push(act('Add to Dictionary', () => wc.session.addWordToSpellCheckerDictionary(p.misspelledWord)), sep)
+    }
+    // opening a javascript:, data: or file: link would only make a blank tab: the load guard refuses it
+    if (p.linkURL) items.push(act('Open Link in New Tab', () => newTab(p.linkURL), tabs.web(p.linkURL)),
+      act('Open Link in Little Window', () => little(p.linkURL), tabs.web(p.linkURL)), act('Copy Link Address', () => clipboard.writeText(p.linkURL)), sep)
+    // a big inline image comes with no srcURL, and can still be copied
+    if (p.mediaType === 'image' && (p.srcURL || p.hasImageContents)) {
+      if (p.srcURL) items.push(act('Open Image in New Tab', () => newTab(p.srcURL), tabs.web(p.srcURL)),
+        act('Save Image As…', () => wc.downloadURL(p.srcURL, { headers: { Referer: p.frameURL || p.pageURL } })))
+      items.push(act('Copy Image', () => wc.copyImageAt(p.x, p.y)))
+      if (p.srcURL) items.push(act('Copy Image Address', () => clipboard.writeText(p.srcURL)))
+      items.push(sep)
+    }
+    const f = p.editFlags
+    const q = p.selectionText.trim().replace(/\s+/g, ' ')
+    const find = q && act(`Search for “${q.length > 30 ? q.slice(0, 30) + '…' : q}”`, () => newTab(search(q)))
+    if (p.isEditable) items.push(act('Undo', () => wc.undo(), f.canUndo), act('Redo', () => wc.redo(), f.canRedo), sep,
+      act('Cut', () => wc.cut(), f.canCut), act('Copy', () => wc.copy(), f.canCopy), act('Paste', () => wc.paste(), f.canPaste),
+      act('Select All', () => wc.selectAll(), f.canSelectAll), ...(find ? [find] : []), sep)
+    else if (q) items.push(act('Copy', () => wc.copy()), find, sep)
+    if (!items.length) items.push(act('Back', () => wc.navigationHistory.goBack(), wc.navigationHistory.canGoBack()),
+      act('Forward', () => wc.navigationHistory.goForward(), wc.navigationHistory.canGoForward()), act('Reload', () => wc.reload()), sep)
+    const menu = Menu.buildFromTemplate(items)
+    // extensions act only on pages they know as tabs: camber's tabs and sites' popups, not a peek or a plain little window
+    const known = [...views.values()].some((v) => v.webContents === wc) || [...littles.values()].some((l) => l.popup && l.page.webContents === wc)
+    const profile = state.spaces.find((s) => session.fromPartition('persist:' + s.profile) === wc.session)?.profile
+    const ext = known && profile ? extensionsFor(profile).getContextMenuItems(wc, p) : []
+    // the template drops its trailing separator, so the ones before the extensions and Inspect go in here
+    for (const i of [sep, ...ext, ...(ext.length ? [sep] : []), act('Inspect', () => wc.inspectElement(p.x, p.y))]) menu.append(i instanceof MenuItem ? i : new MenuItem(i))
+    menu.popup({ window: ownerOf(wc) })
+  })
 }
 
 // css blur can't see into another view, so the backdrop is a snapshot of the page
@@ -728,6 +776,7 @@ async function openPeek(id) {
   wc.on('did-navigate-in-page', (_, url, main) => { if (main) { p.url = url; render() } })
   wc.on('before-input-event', (e, i) => { if (peek === p && i.type === 'keyDown' && i.key === 'Escape') { e.preventDefault(); closePeek() } })
   wc.setWindowOpenHandler(popups((u) => wc.loadURL(u)))
+  pageMenu(wc)
   wc.on('close', () => peek === p && closePeek())
   guard(wc)
   win.contentView.addChildView(ui)

@@ -98,6 +98,10 @@ Cmd on macOS, Ctrl on Linux and Windows.
 | Cmd+Option+Left/Right (Ctrl+Alt on Linux/Windows), or a two-finger swipe in the sidebar | previous/next space |
 | Ctrl+1 to Ctrl+9 (macOS) | go to space 1 to 9 |
 
+Right-click a page for the usual menu: open a link in a new tab or a little window, copy a
+link or an image, save an image, search for selected text, spelling suggestions, extensions'
+own items (in tabs and sites' popups), and Inspect.
+
 Drag tabs to reorder them; dropping a tab among the pinned ones pins it, and
 dropping a pinned tab under New Tab unpins it. Drop a tab or a folder on another
 space's dot at the bottom to move it there. Double-click a space's name, a tab or a
