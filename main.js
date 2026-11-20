@@ -210,7 +210,8 @@ function render() {
   const pane = pair() && paneBounds(space().activeId)
   const fb = finding && paneBounds(space().activeId)
   const find = fb && { text: finding.text, matches: finding.matches, active: finding.active, x: fb.x, y: fb.y - FIND, width: fb.width, height: FIND - GAP }
-  ui.webContents.send('state', { state: { ...state, boosts: undefined }, sidebarOpen, offerArc, tabId: wc?.id, extensionsVersion, nav, platform: process.platform, update: notice, beta: !DEMO && !state.betaDismissed, pane, peek: peek && { url: peek.url, ...peekBounds() }, find })
+  ui.webContents.send('state', { state: { ...state, boosts: undefined }, sidebarOpen, offerArc, tabId: wc?.id, extensionsVersion, nav, platform: process.platform, update: notice, beta: !DEMO && !state.betaDismissed, pane, peek: peek && { url: peek.url, ...peekBounds() }, find,
+    downloads: downloads.map(({ id, name, received, total, done, state }) => ({ id, name, done, state, pct: total ? Math.floor((received * 100) / total) : null })) })
   saveSoon()
 }
 const saveSoon = () => { clearTimeout(saveTimer); saveTimer = setTimeout(save, 500) }
@@ -705,7 +706,7 @@ function pageMenu(wc) {
     // a big inline image comes with no srcURL, and can still be copied
     if (p.mediaType === 'image' && (p.srcURL || p.hasImageContents)) {
       if (p.srcURL) items.push(act('Open Image in New Tab', () => newTab(p.srcURL), tabs.web(p.srcURL)),
-        act('Save Image As…', () => wc.downloadURL(p.srcURL, { headers: { Referer: p.frameURL || p.pageURL } })))
+        act('Save Image As…', () => { askWhere.push([wc, p.srcURL]); wc.downloadURL(p.srcURL, { headers: { Referer: p.frameURL || p.pageURL } }) }))
       items.push(act('Copy Image', () => wc.copyImageAt(p.x, p.y)))
       if (p.srcURL) items.push(act('Copy Image Address', () => clipboard.writeText(p.srcURL)))
       items.push(sep)
@@ -899,6 +900,18 @@ const commands = {
   dismissUpdate() { if (update) { state.dismissedUpdate = update.version; render() } },
   reportBug,
   dismissBeta() { state.betaDismissed = true; render() },
+  // a finished download shows in its folder; one that stopped partway picks up where it was
+  openDownload(id) {
+    const d = downloads.find((d) => d.id === id)
+    if (d?.state === 'completed') shell.showItemInFolder(d.file)
+    else if (d && !d.done && d.state === 'interrupted' && d.item.canResume()) d.item.resume()
+  },
+  // a download's ×: stops one still going, else takes it off the list (the file stays)
+  dropDownload(id) {
+    const d = downloads.find((d) => d.id === id)
+    if (d && !d.done) d.item.cancel()
+    else if (d) { downloads.splice(downloads.indexOf(d), 1); render() }
+  },
   // drag and drop in the sidebar; a today tab dropped among the pinned ones is pinned, and back
   moveTab,
   editBoost,
@@ -1016,12 +1029,66 @@ function menu() {
   ]))
 }
 
+// Downloads go straight to the Downloads folder, as in Chrome, and the sidebar lists them.
+// Save Image As… still asks where: with no save path set, Electron shows its own save dialog.
+const downloads = [] // { id, name, file, received, total, done, state, item }, newest last
+const askWhere = [] // [webContents, url] for each Save Image As… not started yet
+let downloadIds = 0
+// "name (1).ext" when the name is taken. Creating the file claims the name (Electron then writes over it), so
+// two downloads at once, or Report.zip and report.zip on a case-insensitive disk, never get the same file.
+// Anything else (no Downloads folder, a name too long for its suffix) leaves it to Electron's save dialog.
+function claimPath(dir, name) {
+  const { name: base, ext } = path.parse(name)
+  for (let i = 0; ; i++) {
+    const file = path.join(dir, i ? `${base} (${i})${ext}` : name)
+    try { fs.closeSync(fs.openSync(file, 'wx')); return file } catch (e) { if (e.code !== 'EEXIST') return }
+  }
+}
+// running downloads always stay listed; finished ones go, oldest first, past four rows
+function pruneDownloads() {
+  for (let i = 0; downloads.length > 4 && i < downloads.length;) downloads[i].done ? downloads.splice(i, 1) : i++
+}
+function download(_, item, wc) {
+  const d = { id: ++downloadIds, name: item.getFilename(), file: '', received: 0, total: item.getTotalBytes(), done: false, state: 'progressing', item }
+  const ask = askWhere.findIndex(([w, url]) => w === wc && url === item.getURLChain()[0])
+  const claimed = ask < 0 && claimPath(app.getPath('downloads'), d.name)
+  if (ask >= 0) askWhere.splice(ask, 1)
+  else if (claimed) item.setSavePath((d.file = claimed))
+  downloads.push(d)
+  pruneDownloads()
+  const pct = () => d.total ? Math.floor((d.received * 100) / d.total) : null
+  const sync = (state) => {
+    const seen = d.state + pct()
+    Object.assign(d, { state, received: item.getReceivedBytes(), total: item.getTotalBytes(), file: item.getSavePath() || d.file })
+    if (d.file) d.name = path.basename(d.file)
+    if (win.isDestroyed()) return // quitting with a download still going
+    // a download of unknown size makes the Dock or taskbar bar indeterminate (macOS, Windows)
+    const going = downloads.filter((x) => !x.done && x.state === 'progressing')
+    const total = going.reduce((n, x) => n + x.total, 0)
+    win.setProgressBar(!going.length ? -1 : going.some((x) => !x.total) ? 2 : going.reduce((n, x) => n + x.received, 0) / total)
+    // the sidebar only redraws when what it shows changes, not on every chunk
+    if (d.done || d.state + pct() !== seen) render()
+  }
+  item.on('updated', (_, state) => sync(state))
+  item.once('done', (_, state) => {
+    d.done = true
+    // Chromium writes elsewhere until the end, so a download that never finished leaves only the claimed, empty name
+    if (state !== 'completed' && claimed) fs.rm(claimed, { force: true }, () => {})
+    if (state === 'cancelled') downloads.splice(downloads.indexOf(d), 1)
+    else pruneDownloads()
+    sync(state)
+    if (state === 'completed' && MAC) app.dock.downloadFinished(d.file)
+  })
+  render()
+}
+
 // Google refuses sign-in from user agents that mention Electron, so look like plain Chrome
 const cleanUA = (ua) => ua.replace(/ Electron\/\S+/, '').replace(new RegExp(` ${app.getName()}\\/\\S+`), '')
 app.userAgentFallback = cleanUA(app.userAgentFallback)
 app.on('session-created', (s) => {
   s.setUserAgent(cleanUA(s.getUserAgent()))
   guardPermissions(s)
+  s.on('will-download', download)
 })
 
 // without these handlers Electron grants every site whatever macOS has granted camber.

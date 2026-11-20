@@ -82,14 +82,16 @@
   .muted { color: var(--muted); }
   .plus { display: grid; place-items: center; font-size: 15px; }
 
-  #update, #beta { display: flex; align-items: center; gap: 6px; margin: 8px 0 4px; padding: 5px 4px 5px 10px; min-height: 34px; box-sizing: border-box; border-radius: 9px; background: var(--active); box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+  #update, #beta, .dl { display: flex; align-items: center; gap: 6px; margin: 8px 0 4px; padding: 5px 4px 5px 10px; min-height: 34px; box-sizing: border-box; border-radius: 9px; background: var(--active); box-shadow: 0 1px 3px rgba(0,0,0,.1); }
   #update[hidden], #beta[hidden] { display: none; }
-  #update a, #beta a { flex: 1; color: var(--text); text-decoration: none; font-weight: 600; cursor: pointer; }
-  #update button, #beta button { width: 24px; height: 24px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font-size: 15px; }
-  #update button:hover, #beta button:hover { background: var(--hover); }
+  #update a, #beta a, .dl a { flex: 1; color: var(--text); text-decoration: none; font-weight: 600; cursor: pointer; }
+  #update button, #beta button, .dl button { width: 24px; height: 24px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font-size: 15px; }
+  #update button:hover, #beta button:hover, .dl button:hover { background: var(--hover); }
   #beta > div { flex: 1; line-height: 1.35; }
   #beta .link { width: auto; height: auto; padding: 0; background: none; color: var(--text); font: inherit; font-weight: 600; }
   #beta .link:hover { background: none; text-decoration: underline; }
+  .dl a { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dl span { font-size: 12px; }
   #update .restart { width: auto; padding: 0 8px; color: var(--text); font: inherit; font-weight: 600; }
   #import { margin: 8px 0 4px; height: 34px; border: 0; border-radius: 9px; background: var(--active); color: var(--text); font: inherit; font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
   #actions { display: flex; flex-wrap: wrap; gap: 2px; padding: 6px 2px 0; }
@@ -156,6 +158,7 @@
   <div id="tabs"></div>
   <div id="boost" hidden><div class="head"><span></span><label><input type="checkbox"> On</label><button>Done</button></div><textarea spellcheck="false" maxlength="100000" placeholder="CSS for this site, like&#10;body { font-size: 18px }"></textarea></div>
   <div id="update" hidden><a></a><button class="restart" hidden>Restart</button><button title="Dismiss">×</button></div>
+  <div id="downloads"></div>
   <div id="beta" hidden><div>camber is in beta, so you may see bugs.<br><button class="link">Report one on GitHub</button></div><button title="Dismiss">×</button></div>
   <button id="import" hidden>Import from Arc</button>
   <browser-action-list id="actions" alignment="top right"></browser-action-list>
@@ -312,7 +315,8 @@ let actionsKey
 // skipped every update while the rename was open (a closed tab, a folder's second toggle, a drag turned off)
 let last
 camber.onState((p) => draw((last = p)))
-function draw({ state, sidebarOpen, offerArc, tabId, extensionsVersion, nav, platform, update, beta, pane, peek, find }) {
+let drawnDownloads = ''
+function draw({ state, sidebarOpen, offerArc, tabId, extensionsVersion, nav, platform, update, beta, pane, peek, find, downloads }) {
   document.body.classList.toggle('finding', !!find)
   if (find) {
     const w = Math.min(360, find.width)
@@ -331,6 +335,20 @@ function draw({ state, sidebarOpen, offerArc, tabId, extensionsVersion, nav, pla
   if (update) $('update').querySelector('a').textContent = update.ready ? `camber ${update.version} is ready, restart to update` : `camber ${update.version} is out`
   $('update').querySelector('.restart').hidden = !update?.ready
   $('beta').hidden = !beta
+  // a finished download opens its folder, one that stopped resumes; × cancels one still going, else clears it.
+  // Rows are rebuilt only when they change, so a redraw for something else can't eat a click on them.
+  if (JSON.stringify(downloads) !== drawnDownloads) {
+    drawnDownloads = JSON.stringify(downloads)
+    $('downloads').replaceChildren(...downloads.map((d) => {
+      const row = el('div', 'dl'), name = el('a', '', d.name), x = el('button', '', '×')
+      const stopped = !d.done && d.state === 'interrupted'
+      if (d.state === 'completed' || stopped) { name.title = stopped ? 'Resume' : 'Show in folder'; name.onclick = () => camber.send('openDownload', d.id) }
+      x.title = d.done ? 'Clear' : 'Cancel'
+      x.onclick = () => camber.send('dropDownload', d.id)
+      row.append(name, el('span', 'muted', d.done ? (d.state === 'completed' ? '' : 'Failed') : stopped ? 'Stopped' : d.pct === null ? '' : d.pct + '%'), x)
+      return row
+    }))
+  }
   document.body.classList.toggle('mac', platform === 'darwin')
   current = state
   const s = state.spaces[state.active]

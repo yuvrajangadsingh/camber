@@ -102,6 +102,9 @@ Right-click a page for the usual menu: open a link in a new tab or a little wind
 link or an image, save an image, search for selected text, spelling suggestions, extensions'
 own items (in tabs and sites' popups), and Inspect.
 
+Downloads go to your Downloads folder and show in the sidebar while they run; click a
+finished one to see it in its folder, or one that stopped to pick it up again.
+
 Drag tabs to reorder them; dropping a tab among the pinned ones pins it, and
 dropping a pinned tab under New Tab unpins it. Drop a tab or a folder on another
 space's dot at the bottom to move it there. Double-click a space's name, a tab or a
