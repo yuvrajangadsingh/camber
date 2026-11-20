@@ -3,6 +3,19 @@
 Newest first. Installers and the full notes are on the
 [releases page](https://github.com/yuvrajangadsingh/camber/releases).
 
+## 0.6.1 (2026-11-20)
+
+Downloads.
+
+- A download now saves straight to your Downloads folder, as in Chrome, instead of
+  asking where every time ("name (1).ext" when the name is taken). Save Image As still
+  asks.
+- The sidebar lists downloads: the percent while one runs, click a finished one to see
+  it in its folder or a stopped one to resume, × to cancel or clear. The Dock or taskbar
+  icon shows the progress.
+- Tried on macOS (Apple Silicon) with test downloads. Save Image As, resuming, Windows
+  and Linux are untested.
+
 ## 0.6.0 (2026-11-19)
 
 The browser basics camber was missing, and spaces that switch the way Arc's do.
