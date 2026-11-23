@@ -899,6 +899,21 @@ const target = () => littles.get(focusedLittle())?.page.webContents || peek?.vie
 const back = () => target()?.navigationHistory.goBack()
 const forward = () => target()?.navigationHistory.goForward()
 const reload = () => { const wc = target(); if (wc?.isLoading()) wc.stop(); else wc?.reload() }
+// the next or previous tab down the sidebar as it is drawn (favorites, pinned, today; a closed folder's
+// tabs are skipped), wrapping around. Only while the tab is what's in front.
+const shownTabs = (items) => items.flatMap((it) => (it.children ? (it.open ? shownTabs(it.children) : []) : [it]))
+function stepTab(d) {
+  if (paletteOpen || peek || focusedLittle()) return
+  const s = space(), ids = shownTabs([...favoritesOf(s), ...s.pinned, ...s.today]).map((t) => t.id), i = ids.indexOf(s.activeId)
+  const to = ids[i < 0 ? (d > 0 ? 0 : ids.length - 1) : (i + d + ids.length) % ids.length]
+  if (to && to !== s.activeId) select(to)
+}
+// the address asked for stands in while a page hasn't loaded (or failed to)
+function copyURL() {
+  const l = littles.get(focusedLittle())
+  const url = l ? l.page.webContents.getURL() || l.url : peek ? peek.url : find(space().activeId)?.t.url
+  if (url && url !== 'about:blank') clipboard.writeText(url)
+}
 const toggleSidebar = () => { float(false); sidebarOpen = !sidebarOpen; layout(); render() }
 // Arc's hidden sidebar: the pointer at the window's left edge slides it out over the page, and it goes when the
 // pointer leaves it. ui comes up over the pages, cut to the sidebar's width so the page beside it stays live.
@@ -1050,6 +1065,8 @@ function menu() {
         item('Find Next', 'CmdOrCtrl+G', () => findStep(true)),
         item('Find Previous', 'CmdOrCtrl+Shift+G', () => findStep(false)),
         item('Reload', 'CmdOrCtrl+R', reload),
+        // Arc's Cmd+Shift+C: the address of what is in front (a little window, the peek, else the tab)
+        item('Copy URL', 'CmdOrCtrl+Shift+C', copyURL),
         item('Back', 'CmdOrCtrl+[', back),
         item('Forward', 'CmdOrCtrl+]', forward),
         item('Pin / Unpin', 'CmdOrCtrl+D', togglePin),
@@ -1077,6 +1094,11 @@ function menu() {
       submenu: [
         item('Next Space', MAC ? 'Cmd+Alt+Right' : 'Ctrl+Alt+Right', () => moveSpace(1)),
         item('Previous Space', MAC ? 'Cmd+Alt+Left' : 'Ctrl+Alt+Left', () => moveSpace(-1)),
+        item('Next Tab', 'Ctrl+Tab', () => stepTab(1)),
+        item('Previous Tab', 'Ctrl+Shift+Tab', () => stepTab(-1)),
+        // Arc's Cmd+Option+Down and Up step through tabs too
+        { ...item('Next Tab', MAC ? 'Cmd+Alt+Down' : 'Ctrl+Alt+Down', () => stepTab(1)), visible: false },
+        { ...item('Previous Tab', MAC ? 'Cmd+Alt+Up' : 'Ctrl+Alt+Up', () => stepTab(-1)), visible: false },
         // Arc's Ctrl+1 to 9 on a Mac; a hidden item keeps its shortcut there
         ...(MAC ? [1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) =>
           ({ ...item('Space ' + n, 'Ctrl+' + n, () => state.spaces[n - 1] && showSpace(n - 1)), visible: false })) : []),
