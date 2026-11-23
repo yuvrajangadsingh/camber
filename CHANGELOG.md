@@ -3,6 +3,15 @@
 Newest first. Installers and the full notes are on the
 [releases page](https://github.com/yuvrajangadsingh/camber/releases).
 
+## 0.6.4 (2026-11-23)
+
+- History: the command bar (Cmd+T) now finds pages you visited before, after your open
+  tabs. Kept per profile on your computer; Tab > Clear History empties it.
+- Cmd+Shift+C copies the page's URL, as in Arc.
+- Ctrl+Tab and Ctrl+Shift+Tab (or Cmd+Option+Down and Up) go to the next or previous
+  tab down the sidebar.
+- Tried on macOS (Apple Silicon). Windows and Linux are untested.
+
 ## 0.6.3 (2026-11-23)
 
 - Find in page (Cmd+F) now works in a peek, with the box in the peek's top strip, and in
