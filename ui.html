@@ -613,8 +613,8 @@ const findBox = document.querySelector('#find input')
 findBox.oninput = () => camber.send('find', findBox.value, true)
 findBox.onkeydown = (e) => {
   if (e.key === 'Enter') camber.send('find', findBox.value, !e.shiftKey)
-  else if (e.key === 'Escape') camber.send('closeFind')
 }
+$('find').onkeydown = (e) => { if (e.key === 'Escape') { e.stopPropagation(); camber.send('closeFind') } }
 const [findPrev, findNext, findClose] = document.querySelectorAll('#find button')
 findPrev.onclick = () => camber.send('find', findBox.value, false)
 findNext.onclick = () => camber.send('find', findBox.value, true)

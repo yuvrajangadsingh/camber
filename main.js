@@ -209,8 +209,9 @@ function render() {
   const nav = { back: !!wc?.navigationHistory.canGoBack(), forward: !!wc?.navigationHistory.canGoForward(), loading: !!wc?.isLoading() }
   const notice = update && state.dismissedUpdate !== update.version ? update : null
   const pane = pair() && paneBounds(space().activeId)
-  const fb = finding && paneBounds(space().activeId)
-  const find = fb && { text: finding.text, matches: finding.matches, active: finding.active, x: fb.x, y: fb.y - FIND, width: fb.width, height: FIND - GAP }
+  const pb = findInPeek() && peekBounds(), fb = finding && !pb && paneBounds(space().activeId)
+  const at = pb ? { x: pb.x + 6, y: pb.y + 5, width: pb.width - 130, height: STRIP - 10 } : fb && { x: fb.x, y: fb.y - FIND, width: fb.width, height: FIND - GAP }
+  const find = finding && { text: finding.text, matches: finding.matches, active: finding.active, ...at }
   ui.webContents.send('state', { state: { ...state, boosts: undefined }, sidebarOpen: sidebarOpen || !!floating, offerArc, tabId: wc?.id, extensionsVersion, nav, platform: process.platform, update: notice, beta: !DEMO && !state.betaDismissed, pane, peek: peek && { url: peek.url, ...peekBounds() }, find,
     downloads: downloads.map(({ id, name, received, total, done, state }) => ({ id, name, done, state, pct: total ? Math.floor((received * 100) / total) : null })) })
   saveSoon()
@@ -224,12 +225,13 @@ const CAPTION = 40
 
 // Find in page (Cmd+F): the page moves down to make room for the find bar, which ui.html draws in that strip
 const FIND = 40
-let finding = null // { wc, text, req, matches, active }, for one tab
+let finding = null // { wc, text, req, matches, active }, for one tab or the peek
+const findInPeek = () => !!finding && finding.wc === peek?.view.webContents
 
 const contentBounds = () => {
   const { width, height } = win.getContentBounds()
   const x = sidebarOpen ? SIDEBAR : GAP
-  const y = (MAC ? GAP : CAPTION) + (finding ? FIND : 0)
+  const y = (MAC ? GAP : CAPTION) + (finding && !findInPeek() ? FIND : 0)
   return { x, y, width: width - x - GAP, height: height - y - GAP }
 }
 
@@ -293,7 +295,7 @@ let shownSpace
 let onScreen = new Set()
 function layout() {
   // the find bar belongs to one tab: showing another closes it
-  if (finding && finding.wc !== current()) { if (!finding.wc.isDestroyed()) finding.wc.stopFindInPage('clearSelection'); finding = null }
+  if (finding && finding.wc !== current() && !findInPeek()) { if (!finding.wc.isDestroyed()) finding.wc.stopFindInPage('clearSelection'); finding = null }
   if (shownSpace && shownSpace !== space()) { shownSpace.split = null; closePeek() }
   shownSpace = space()
   win.setBackgroundColor(space().color)
@@ -399,6 +401,16 @@ function editBoost() {
   ui.webContents.focus()
 }
 
+function countMatches(wc) {
+  wc.on('found-in-page', (_, r) => {
+    // only the answer to the latest request: an older, slower one would count the wrong text
+    if (finding?.wc !== wc || r.requestId !== finding.req) return
+    if (r.activeMatchOrdinal >= 0) finding.active = r.activeMatchOrdinal
+    if (r.finalUpdate) finding.matches = r.matches
+    render()
+  })
+}
+
 // `adopt` is an already loaded view (a peek) that becomes this tab's page as it is
 function viewFor(t, adopt) {
   if (views.has(t.id)) return views.get(t.id)
@@ -413,14 +425,8 @@ function viewFor(t, adopt) {
   wc.on('did-start-loading', render)
   wc.on('did-stop-loading', render)
   wc.on('dom-ready', () => boostPage(wc))
-  wc.on('found-in-page', (_, r) => {
-    // only the answer to the latest request: an older, slower one would count the wrong text
-    if (finding?.wc !== wc || r.requestId !== finding.req) return
-    if (r.activeMatchOrdinal >= 0) finding.active = r.activeMatchOrdinal
-    if (r.finalUpdate) finding.matches = r.matches
-    render()
-  })
-  if (adopt) boostPage(wc) // a peek turned tab is past its dom-ready
+  if (adopt) boostPage(wc) // a peek turned tab is past its dom-ready, and already counts its matches
+  else countMatches(wc)
   // clicking the other pane of a split makes it the active tab
   wc.on('before-mouse-event', (_, m) => { if (m.type === 'mouseDown' && pair()?.includes(t.id) && space().activeId !== t.id) select(t.id) })
   wc.setWindowOpenHandler(popups(newTab))
@@ -782,6 +788,7 @@ async function openPeek(id) {
   wc.on('before-input-event', (e, i) => { if (peek === p && i.type === 'keyDown' && i.key === 'Escape') { e.preventDefault(); closePeek() } })
   wc.setWindowOpenHandler(popups((u) => wc.loadURL(u)))
   pageMenu(wc)
+  countMatches(wc)
   wc.on('close', () => peek === p && closePeek())
   guard(wc)
   win.contentView.addChildView(ui)
@@ -792,13 +799,15 @@ async function openPeek(id) {
   p.loading = true
   if (p.toTab) return peekToTab()
   render()
-  wc.focus()
+  if (!findInPeek()) wc.focus()
 }
 
 // keep: the view lives on as a tab (peekToTab), so it is not closed
 function closePeek(keep) {
   const p = peek
   if (!p) return
+  // not closeFind: its layout() would close this peek a second time when a space switch is closing it
+  if (findInPeek()) { if (!p.view.webContents.isDestroyed()) p.view.webContents.stopFindInPage('clearSelection'); finding = null }
   peek = null
   if (!keep) { win.contentView.removeChildView(p.view); if (!p.view.webContents.isDestroyed()) p.view.webContents.close() }
   win.contentView.removeChildView(ui)
@@ -830,8 +839,8 @@ const current = () => views.get(space().activeId)?.webContents
 // Chrome's zoom steps; Chromium keeps one zoom per site
 const ZOOMS = [0.25, 0.33, 0.5, 0.67, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4, 5]
 function openFind() {
-  const wc = current()
-  if (!wc || peek || paletteOpen || focusedLittle()) return
+  const wc = peek ? peek.view.webContents : current()
+  if (!wc || paletteOpen || focusedLittle()) return
   float(false) // the find bar runs across the top of the page
   if (!finding) { finding = { wc, text: '', req: 0, matches: 0, active: 0 }; layout(); render() }
   ui.webContents.focus()
@@ -846,7 +855,7 @@ function findText(text, forward) {
   finding.req = finding.wc.findInPage(text, { forward, findNext: !again })
 }
 // Cmd+G and Shift+Cmd+G, only while the tab is what's in front
-const findStep = (forward) => finding && !peek && !paletteOpen && !focusedLittle() && findText(finding.text, forward)
+const findStep = (forward) => finding && (!peek || findInPeek()) && !paletteOpen && !focusedLittle() && findText(finding.text, forward)
 function closeFind() {
   if (!finding) return
   const { wc } = finding
@@ -854,7 +863,7 @@ function closeFind() {
   if (!wc.isDestroyed()) wc.stopFindInPage('clearSelection')
   layout()
   render()
-  if (wc === current()) wc.focus()
+  if (wc === current() || wc === peek?.view.webContents) wc.focus()
 }
 function zoom(d) {
   const wc = target()
