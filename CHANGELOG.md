@@ -3,6 +3,12 @@
 Newest first. Installers and the full notes are on the
 [releases page](https://github.com/yuvrajangadsingh/camber/releases).
 
+## 0.6.3 (2026-11-23)
+
+- Find in page (Cmd+F) now works in a peek, with the box in the peek's top strip, and in
+  little windows, where the box takes the address's place until Esc.
+- Tried on macOS (Apple Silicon). Windows and Linux are untested.
+
 ## 0.6.2 (2026-11-23)
 
 - With the sidebar hidden (Cmd+S), move the pointer to the window's left edge and it comes
