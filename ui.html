@@ -195,7 +195,7 @@ function letterTile(url) {
 function favicon(t) {
   const tile = letterTile(t.url)
   let src = t.favicon
-  if (!src) try { const u = new URL(t.url); if (u.protocol.startsWith('http')) src = u.origin + '/favicon.ico' } catch {}
+  if (!src && !t.visit) try { const u = new URL(t.url); if (u.protocol.startsWith('http')) src = u.origin + '/favicon.ico' } catch {}
   if (!src) return tile
   const img = el('img', 'icon')
   img.onload = () => tile.replaceWith(img)
@@ -497,6 +497,20 @@ function matches() {
     .map((m) => m.t)
 }
 
+// history: every word typed is in the title or address; sites whose name starts with it first, then newest.
+// Open tabs are left out, they are listed already.
+// Only the profile the palette opened on: a space switch meanwhile shows none, not the other profile's.
+let visits = [], visitsProfile
+function pastVisits(q) {
+  const words = q.toLowerCase().split(/\s+/), s = current.spaces[current.active]
+  if (s.profile !== visitsProfile) return []
+  const open = new Set([...tabsOf(s)].map((t) => t.url))
+  return visits.filter((v) => !open.has(v.url) && words.every((w) => v.hay.includes(w)))
+    .sort((a, b) => b.host.startsWith(words[0]) - a.host.startsWith(words[0]))
+    .slice(0, 5)
+    .map((v) => ({ ...v, id: 'visit:' + v.url, visit: true }))
+}
+
 const looksLikeURL = (q) => !/\s/.test(q) && (q.includes('.') || q.includes(':'))
 
 // rows in display order: typed URLs go first; otherwise open tabs first (like Arc) and search last
@@ -504,7 +518,7 @@ function items() {
   const q = $('query').value.trim()
   if (mode === 'split' || mode === 'archive') return matches()
   if (!q) return []
-  const tabs = matches()
+  const tabs = [...matches(), ...pastVisits(q)]
   const offer = (words, action) => (q.length > 1 && words.startsWith(q.toLowerCase()) ? [{ action }] : [])
   return looksLikeURL(q) ? [null, ...tabs] : [...offer('split with', 'split'), ...offer('boost this site', 'boost'), ...tabs, null]
 }
@@ -531,7 +545,7 @@ function showResults() {
       r.append(el('div', 'icon plus', icon), el('span', '', label))
     } else if (t) {
       r = tabRow(t)
-      r.append(el('span', 'hint', { split: 'Split', archive: 'Reopen' }[mode] || 'Switch to tab'))
+      r.append(el('span', 'hint', t.visit ? 'History' : { split: 'Split', archive: 'Reopen' }[mode] || 'Switch to tab'))
     } else {
       r = el('div', 'row')
       r.append(el('div', 'icon plus', looksLikeURL(q) ? '↗' : '⌕'), el('span', '', looksLikeURL(q) ? q : `Search DuckDuckGo for “${q}”`))
@@ -571,7 +585,11 @@ boostOn.onchange = sendBoost
 boostBox.querySelector('button').onclick = () => closeBoost()
 boostText.onkeydown = (e) => { if (e.key === 'Escape') closeBoost() }
 
-camber.onPalette(({ mode: m, url, backdrop, boost }) => {
+camber.onPalette(({ mode: m, url, backdrop, boost, history, profile }) => {
+  if (history) {
+    visitsProfile = profile
+    visits = history.map((v) => ({ ...v, hay: ((v.title || '') + ' ' + v.url).toLowerCase(), host: hostOfUrl(v.url).replace(/^www\./, '') }))
+  }
   if (m === 'boost') return openBoost(boost)
   const snap = $('snap')
   if (backdrop) {
@@ -600,6 +618,7 @@ function submit() {
   if (t && mode === 'split') camber.send('split', t.id)
   else if (mode === 'split') camber.send('closePalette')
   else if (mode === 'archive') camber.send(t ? 'reopen' : 'closePalette', t?.id)
+  else if (t?.visit) camber.send('go', t.url, mode)
   else if (t) camber.send('select', t.id)
   else if (q.trim()) camber.send('go', q, mode)
   else camber.send('closePalette')

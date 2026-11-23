@@ -296,7 +296,7 @@ let onScreen = new Set()
 function layout() {
   // the find bar belongs to one tab: showing another closes it
   if (finding && finding.wc !== current() && !findInPeek()) { if (!finding.wc.isDestroyed()) finding.wc.stopFindInPage('clearSelection'); finding = null }
-  if (shownSpace && shownSpace !== space()) { shownSpace.split = null; closePeek() }
+  if (shownSpace && shownSpace !== space()) { shownSpace.split = null; closePeek(); closePalette() }
   shownSpace = space()
   win.setBackgroundColor(space().color)
   tintCaption()
@@ -375,7 +375,11 @@ function extensionsFor(profile) {
 
 // a view for a web page: each space's profile is its own cookie jar, like Arc's profile-per-space,
 // and page-preload.js saves and fills passwords
-const pageView = (profile) => new WebContentsView({ webPreferences: { partition: 'persist:' + profile, preload: path.join(__dirname, 'page-preload.js') } })
+const sessionProfiles = new Map() // session -> profile, for history
+function pageView(profile) {
+  sessionProfiles.set(session.fromPartition('persist:' + profile), profile)
+  return new WebContentsView({ webPreferences: { partition: 'persist:' + profile, preload: path.join(__dirname, 'page-preload.js') } })
+}
 
 // Boosts, the CSS part of Arc's: state.boosts[host] = { css, off } goes into every tab page on that host when
 // its document is ready, and again on each edit. Tab > Boost This Site… edits the current site's in the sidebar.
@@ -765,7 +769,8 @@ async function openPalette(mode) {
   if (!paletteOpen) return // closed meanwhile (Cmd+Shift+T)
   win.contentView.addChildView(ui) // re-adding moves it to the top
   const t = find(space().activeId)?.t
-  ui.webContents.send('palette', { mode, url: mode === 'edit' ? t?.url || '' : '', backdrop: snap })
+  ui.webContents.send('palette', { mode, url: mode === 'edit' ? t?.url || '' : '', backdrop: snap,
+    ...(mode === 'new' || mode === 'edit') && { history: [...(history[space().profile]?.values() || [])].reverse(), profile: space().profile } })
   ui.webContents.focus()
 }
 
@@ -1059,6 +1064,7 @@ function menu() {
         item('Archived Tabs…', undefined, () => { front(); openPalette('archive') }),
         item('Boost This Site…', undefined, editBoost),
         item('Clear Archived Tabs', undefined, () => { closePalette(); state.archived = []; render() }),
+        item('Clear History', undefined, () => { closePalette(); history = {}; saveHistory() }),
         item('New Little Window', 'CmdOrCtrl+Shift+N', () => little()),
         item('Open in camber', 'CmdOrCtrl+O', () => { const w = focusedLittle(); if (w) intoCamber(w); else peekToTab() }),
         item('Find in Page…', 'CmdOrCtrl+F', openFind),
@@ -1171,6 +1177,44 @@ function download(_, item, wc) {
 // Google refuses sign-in from user agents that mention Electron, so look like plain Chrome
 const cleanUA = (ua) => ua.replace(/ Electron\/\S+/, '').replace(new RegExp(` ${app.getName()}\\/\\S+`), '')
 app.userAgentFallback = cleanUA(app.userAgentFallback)
+// History: http(s) pages visited in tabs, peeks and little windows, one entry per address, newest last, per
+// profile, for the command bar. 5000 per profile, in history.json beside state.json.
+const HISTORY_MAX = 5000
+let history = {} // profile -> Map(url -> { url, title, at })
+const historyPath = () => path.join(app.getPath('userData'), 'history.json')
+// Written at most every 5 s while pages change it (a page retitling itself every second can't hold it off),
+// and when the window closes. A failed write is logged; history just isn't saved that time.
+let historyTimer = null
+function saveHistory() {
+  clearTimeout(historyTimer)
+  historyTimer = null
+  try {
+    const tmp = historyPath() + '.tmp'
+    fs.writeFileSync(tmp, JSON.stringify(Object.fromEntries(Object.entries(history).map(([p, m]) => [p, [...m.values()]]))))
+    fs.renameSync(tmp, historyPath())
+  } catch (e) { console.error('history not saved:', e.message) }
+}
+const profileOf = (wc) => sessionProfiles.get(wc.session)
+// a visit is a navigation; a new title only names the entry the page is on, it doesn't bring it back or move it up
+function visited(wc, url, title) {
+  const profile = /^https?:/.test(url) && profileOf(wc)
+  if (!profile) return
+  const m = (history[profile] ??= new Map())
+  const was = m.get(url)
+  m.delete(url)
+  m.set(url, { url, title: title || was?.title || '', at: Date.now() })
+  if (m.size > HISTORY_MAX) m.delete(m.keys().next().value)
+  historyTimer ??= setTimeout(saveHistory, 5000)
+}
+app.on('web-contents-created', (_, wc) => {
+  wc.on('did-navigate', (_, url) => visited(wc, url, ''))
+  wc.on('did-navigate-in-page', (_, url, main) => main && visited(wc, url, wc.getTitle()))
+  wc.on('page-title-updated', (_, title) => {
+    const e = /^https?:/.test(wc.getURL()) && history[profileOf(wc)]?.get(wc.getURL())
+    if (e) { e.title = title; historyTimer ??= setTimeout(saveHistory, 5000) }
+  })
+})
+
 app.on('session-created', (s) => {
   s.setUserAgent(cleanUA(s.getUserAgent()))
   guardPermissions(s)
@@ -1406,6 +1450,8 @@ ipcMain.handle('logins', async (e) => {
 })
 
 app.whenReady().then(async () => {
+  // no file yet is the usual start; a broken one starts history over
+  try { history = Object.fromEntries(Object.entries(JSON.parse(fs.readFileSync(historyPath(), 'utf8'))).map(([p, list]) => [p, new Map(list.slice(-HISTORY_MAX).map((e) => [e.url, e]))])) } catch {}
   if (!solo) return
   // castLabs Electron installs or updates the Widevine CDM (Netflix, Spotify) here; a first run with no network
   // must still open, so wait at most 10 s and let playback work from the next launch
@@ -1441,7 +1487,7 @@ app.whenReady().then(async () => {
     ;[...linksIn(process.argv), ...waiting].forEach(openLink)
   })
   win.on('resize', () => { layout(); render() }) // render moves the split's focus ring
-  win.on('closed', () => { clearTimeout(saveTimer); if (!DEMO) save(); app.quit() })
+  win.on('closed', () => { clearTimeout(saveTimer); if (!DEMO) save(); saveHistory(); app.quit() })
   menu()
   layout()
 })
