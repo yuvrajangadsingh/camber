@@ -3,6 +3,12 @@
 Newest first. Installers and the full notes are on the
 [releases page](https://github.com/yuvrajangadsingh/camber/releases).
 
+## 0.6.2 (2026-11-23)
+
+- With the sidebar hidden (Cmd+S), move the pointer to the window's left edge and it comes
+  out over the page, as in Arc. It goes away when the pointer leaves it.
+- Tried on macOS (Apple Silicon). Windows and Linux are untested.
+
 ## 0.6.1 (2026-11-20)
 
 Downloads.
