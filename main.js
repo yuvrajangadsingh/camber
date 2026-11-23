@@ -401,13 +401,14 @@ function editBoost() {
   ui.webContents.focus()
 }
 
-function countMatches(wc) {
+function countMatches(wc, of = () => finding, done = render) {
   wc.on('found-in-page', (_, r) => {
     // only the answer to the latest request: an older, slower one would count the wrong text
-    if (finding?.wc !== wc || r.requestId !== finding.req) return
-    if (r.activeMatchOrdinal >= 0) finding.active = r.activeMatchOrdinal
-    if (r.finalUpdate) finding.matches = r.matches
-    render()
+    const f = of()
+    if (f?.wc !== wc || r.requestId !== f.req) return
+    if (r.activeMatchOrdinal >= 0) f.active = r.activeMatchOrdinal
+    if (r.finalUpdate) f.matches = r.matches
+    done()
   })
 }
 
@@ -600,7 +601,7 @@ function setArchiveHours(h) {
 
 // Little Arc: a link from outside with no routing rule opens in a small window of its own, on
 // the current space's profile so logins work. Open in camber (Cmd+O) moves it into the space.
-const littles = new Map() // BaseWindow -> { bar, page, url }
+const littles = new Map() // BaseWindow -> { bar, page, url, popup, sync, find }, find as finding is for the main window
 const BAR = 38
 // `opened`: a page's popup (see popups), whose page Electron made, on the opener's profile
 function little(url, opened) {
@@ -621,7 +622,9 @@ function little(url, opened) {
   const l = { bar, page, url: url || 'about:blank', popup: !!opened }
   littles.set(w, l)
   // a page that failed to load (bad host, offline) has no URL, so the one asked for stands in
-  const sync = () => bar.webContents.send('state', { url: wc.getURL() || l.url, back: wc.navigationHistory.canGoBack(), mac: MAC, popup: l.popup })
+  const sync = l.sync = () => bar.webContents.send('state', { url: wc.getURL() || l.url, back: wc.navigationHistory.canGoBack(), mac: MAC, popup: l.popup,
+    find: l.find && { text: l.find.text, matches: l.find.matches, active: l.find.active } })
+  countMatches(wc, () => l.find, sync)
   wc.on('did-navigate', sync)
   wc.on('did-navigate-in-page', sync)
   wc.on('page-title-updated', (_, title) => w.setTitle(title))
@@ -666,6 +669,14 @@ const littleCommands = {
     l.page.webContents.loadURL(url)
   },
   open: intoCamber,
+  find(w, text, forward) { const l = littles.get(w); if (l.find) seek(l.find, String(text ?? ''), forward !== false, l.sync) },
+  closeFind(w, keepFocus) {
+    const l = littles.get(w)
+    if (!l.find) return
+    l.find = null
+    if (!l.page.webContents.isDestroyed()) { l.page.webContents.stopFindInPage('clearSelection'); if (!keepFocus) l.page.webContents.focus() }
+    l.sync()
+  },
 }
 
 // a space with tabs never shows an empty content area: last active tab, else its first tab
@@ -839,23 +850,35 @@ const current = () => views.get(space().activeId)?.webContents
 // Chrome's zoom steps; Chromium keeps one zoom per site
 const ZOOMS = [0.25, 0.33, 0.5, 0.67, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4, 5]
 function openFind() {
+  const l = littles.get(focusedLittle())
+  if (l) {
+    l.find ??= { wc: l.page.webContents, text: '', req: 0, matches: 0, active: 0 }
+    l.sync()
+    l.bar.webContents.focus()
+    return l.bar.webContents.send('find')
+  }
   const wc = peek ? peek.view.webContents : current()
-  if (!wc || paletteOpen || focusedLittle()) return
+  if (!wc || paletteOpen) return
   float(false) // the find bar runs across the top of the page
   if (!finding) { finding = { wc, text: '', req: 0, matches: 0, active: 0 }; layout(); render() }
   ui.webContents.focus()
   ui.webContents.send('find')
 }
 // a new text starts a new search; the same text again steps to the next (or previous) match
-function findText(text, forward) {
-  if (!finding || finding.wc.isDestroyed()) return
-  const again = text === finding.text
-  finding.text = text
-  if (!text) { finding.wc.stopFindInPage('clearSelection'); finding.req = finding.matches = finding.active = 0; return render() }
-  finding.req = finding.wc.findInPage(text, { forward, findNext: !again })
+function seek(f, text, forward, done) {
+  if (f.wc.isDestroyed()) return
+  const again = text === f.text
+  f.text = text
+  if (!text) { f.wc.stopFindInPage('clearSelection'); f.req = f.matches = f.active = 0; return done() }
+  f.req = f.wc.findInPage(text, { forward, findNext: !again })
 }
-// Cmd+G and Shift+Cmd+G, only while the tab is what's in front
-const findStep = (forward) => finding && (!peek || findInPeek()) && !paletteOpen && !focusedLittle() && findText(finding.text, forward)
+const findText = (text, forward) => finding && seek(finding, text, forward, render)
+// Cmd+G and Shift+Cmd+G, in a little window for its own search, else only while the tab is what's in front
+function findStep(forward) {
+  const l = littles.get(focusedLittle())
+  if (l) return l.find && seek(l.find, l.find.text, forward, l.sync)
+  if (finding && (!peek || findInPeek()) && !paletteOpen) findText(finding.text, forward)
+}
 function closeFind() {
   if (!finding) return
   const { wc } = finding
@@ -1012,6 +1035,7 @@ function menu() {
         item('Open Location', 'CmdOrCtrl+L', () => {
           const w = focusedLittle()
           if (!w) return openPalette('edit')
+          littleCommands.closeFind(w, true) // the address is hidden while a search is open
           littles.get(w).bar.webContents.focus()
           littles.get(w).bar.webContents.send('palette')
         }),
