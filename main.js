@@ -1,4 +1,4 @@
-const { app, BaseWindow, WebContentsView, Menu, MenuItem, dialog, ipcMain, session, nativeTheme, net, shell, safeStorage, clipboard, webContents, components } = require('electron')
+const { app, BaseWindow, WebContentsView, Menu, MenuItem, dialog, ipcMain, session, nativeTheme, net, screen, shell, safeStorage, clipboard, webContents, components } = require('electron')
 const { ElectronChromeExtensions } = require('electron-chrome-extensions')
 const { installChromeWebStore } = require('electron-chrome-web-store')
 const fs = require('node:fs')
@@ -15,6 +15,7 @@ const GAP = 8
 const views = new Map() // tab id -> WebContentsView, only for tabs opened this run
 let win, ui
 let sidebarOpen = true
+let floating = null // while the hidden sidebar is out over the page, the timer watching the pointer (float)
 let paletteOpen = false
 
 let state = {
@@ -210,7 +211,7 @@ function render() {
   const pane = pair() && paneBounds(space().activeId)
   const fb = finding && paneBounds(space().activeId)
   const find = fb && { text: finding.text, matches: finding.matches, active: finding.active, x: fb.x, y: fb.y - FIND, width: fb.width, height: FIND - GAP }
-  ui.webContents.send('state', { state: { ...state, boosts: undefined }, sidebarOpen, offerArc, tabId: wc?.id, extensionsVersion, nav, platform: process.platform, update: notice, beta: !DEMO && !state.betaDismissed, pane, peek: peek && { url: peek.url, ...peekBounds() }, find,
+  ui.webContents.send('state', { state: { ...state, boosts: undefined }, sidebarOpen: sidebarOpen || !!floating, offerArc, tabId: wc?.id, extensionsVersion, nav, platform: process.platform, update: notice, beta: !DEMO && !state.betaDismissed, pane, peek: peek && { url: peek.url, ...peekBounds() }, find,
     downloads: downloads.map(({ id, name, received, total, done, state }) => ({ id, name, done, state, pct: total ? Math.floor((received * 100) / total) : null })) })
   saveSoon()
 }
@@ -298,7 +299,7 @@ function layout() {
   win.setBackgroundColor(space().color)
   tintCaption()
   const { width, height } = win.getContentBounds()
-  ui.setBounds({ x: 0, y: 0, width, height })
+  ui.setBounds({ x: 0, y: 0, width: floating ? Math.min(SIDEBAR, width) : width, height })
   const p = pair()
   // both panes count as in use, so the one that isn't active doesn't age into the archive
   p?.forEach((id) => { const { t } = find(id); t.lastActive = Date.now(); viewFor(t) })
@@ -315,6 +316,7 @@ function layout() {
   onScreen = shown
   // a tab view loaded just now goes on top, so the ui and the peek are put back over it
   if (peek) { win.contentView.addChildView(ui); win.contentView.addChildView(peek.view); fitPeek() }
+  else if (floating) win.contentView.addChildView(ui)
 }
 
 // chrome.* extension APIs and the Web Store, set up once per profile session
@@ -739,6 +741,7 @@ async function backdrop() {
 
 async function openPalette(mode) {
   if (paletteOpen || peek) return
+  float(false) // the palette needs ui at full size
   closeFind() // its box would stay clickable beside the palette, and closing it would hand focus to the page underneath
   paletteOpen = true
   const snap = await backdrop()
@@ -767,6 +770,7 @@ const fitPeek = () => {
 async function openPeek(id) {
   const t = find(id)?.t
   if (!t || peek || paletteOpen || !allowed(t.url)) return
+  float(false)
   closeFind() // as for the palette
   const p = peek = { view: pageView(space().profile), url: t.url, source: id }
   const snap = await backdrop()
@@ -828,6 +832,7 @@ const ZOOMS = [0.25, 0.33, 0.5, 0.67, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2
 function openFind() {
   const wc = current()
   if (!wc || peek || paletteOpen || focusedLittle()) return
+  float(false) // the find bar runs across the top of the page
   if (!finding) { finding = { wc, text: '', req: 0, matches: 0, active: 0 }; layout(); render() }
   ui.webContents.focus()
   ui.webContents.send('find')
@@ -862,7 +867,32 @@ const target = () => littles.get(focusedLittle())?.page.webContents || peek?.vie
 const back = () => target()?.navigationHistory.goBack()
 const forward = () => target()?.navigationHistory.goForward()
 const reload = () => { const wc = target(); if (wc?.isLoading()) wc.stop(); else wc?.reload() }
-const toggleSidebar = () => { sidebarOpen = !sidebarOpen; layout(); render() }
+const toggleSidebar = () => { float(false); sidebarOpen = !sidebarOpen; layout(); render() }
+// Arc's hidden sidebar: the pointer at the window's left edge slides it out over the page, and it goes when the
+// pointer leaves it. ui comes up over the pages, cut to the sidebar's width so the page beside it stays live.
+// Leaving is read from where the OS has the pointer, so the sidebar can't stay stuck out if ui never hears it go;
+// on Linux ui's mouseleave puts it away too, as Electron can't say where the pointer is under Wayland.
+// Not with the find bar open: ui cut to the sidebar's width would hide it.
+function float(on) {
+  if (!!floating === on || (on && (sidebarOpen || paletteOpen || peek || finding))) return
+  if (on) {
+    win.contentView.addChildView(ui)
+    floating = setInterval(() => {
+      if (win.isDestroyed()) return clearInterval(floating)
+      const p = screen.getCursorScreenPoint(), b = win.getContentBounds()
+      if (p.x < b.x || p.x >= b.x + Math.min(SIDEBAR, b.width) || p.y < b.y || p.y >= b.y + b.height) float(false)
+    }, 100)
+  } else {
+    clearInterval(floating)
+    floating = null
+    const typing = ui.webContents.isFocused()
+    win.contentView.removeChildView(ui)
+    win.contentView.addChildView(ui, 0)
+    if (typing) current()?.focus() // a rename left in the sidebar would otherwise keep the keyboard
+  }
+  layout()
+  render()
+}
 
 const commands = {
   select(id) { closePalette(); select(id) },
@@ -899,6 +929,7 @@ const commands = {
   restartToUpdate: () => update?.ready && updater.quitAndInstall(),
   dismissUpdate() { if (update) { state.dismissedUpdate = update.version; render() } },
   reportBug,
+  floatSidebar: (on) => (on !== false ? float(true) : LINUX && float(false)),
   dismissBeta() { state.betaDismissed = true; render() },
   // a finished download shows in its folder; one that stopped partway picks up where it was
   openDownload(id) {

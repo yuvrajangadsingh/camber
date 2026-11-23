@@ -301,6 +301,10 @@ for (const [id, cmd] of [['nav-menu', 'appMenu'], ['nav-sidebar', 'toggleSidebar
 // a two-finger swipe across the sidebar switches spaces, like Arc: one switch per swipe, and the
 // next only after the fingers (and the trackpad's momentum) have rested
 let swipeX = 0, swipeRest
+// the hidden sidebar comes out while the pointer is at the window's left edge (main puts it away), also
+// in the middle of a drag that went past it, so the drag can come back to drop
+for (const type of ['mousemove', 'dragover']) addEventListener(type, (e) => e.clientX < 8 && camber.send('floatSidebar'))
+document.documentElement.addEventListener('mouseleave', () => camber.send('floatSidebar', false))
 $('sidebar').addEventListener('wheel', (e) => {
   clearTimeout(swipeRest)
   swipeRest = setTimeout(() => (swipeX = 0), 250)

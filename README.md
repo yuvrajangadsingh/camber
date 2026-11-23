@@ -89,7 +89,7 @@ Cmd on macOS, Ctrl on Linux and Windows.
 | Cmd+Shift+T | reopen the last closed or archived tab |
 | Cmd+D | pin or unpin |
 | Cmd+R, Cmd+[, Cmd+] | reload, back, forward |
-| Cmd+S | toggle sidebar |
+| Cmd+S | toggle sidebar; while it is hidden, the pointer at the window's left edge brings it out |
 | Cmd+=, Cmd+-, Cmd+0 | zoom in, zoom out, actual size |
 | Cmd+P | print |
 | Cmd+Shift+N | little window |
