@@ -3,6 +3,13 @@
 Newest first. Installers and the full notes are on the
 [releases page](https://github.com/yuvrajangadsingh/camber/releases).
 
+## 0.6.5 (2026-11-24)
+
+- Import from Arc now brings your Arc history too: the last 5000 pages of each
+  profile, which the command bar (Cmd+T) finds after your open tabs. Pages you
+  visited in both browsers keep the later visit.
+- Tried on macOS (Apple Silicon). Windows and Linux are untested.
+
 ## 0.6.4 (2026-11-23)
 
 - History: the command bar (Cmd+T) now finds pages you visited before, after your open
