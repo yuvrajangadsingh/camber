@@ -1,6 +1,6 @@
 const test = require('node:test')
 const assert = require('node:assert')
-const { convert, merge, arcFile } = require('../arc')
+const { convert, merge, arcFile, history } = require('../arc')
 
 test('imports spaces, pinned tabs and folders from an Arc sidebar file', () => {
   let n = 0
@@ -81,4 +81,45 @@ test('finds the Arc sidebar file per platform', () => {
   assert.strictEqual(arcFile('win32', { localAppData: 'C:\\x' }, () => ['Other.App_1']), null)
   assert.strictEqual(arcFile('win32', { localAppData: 'C:\\x' }, none), null)
   assert.strictEqual(arcFile('linux', { appData: '/home/a/.config' }, none), null)
+})
+
+test('reads Arc history per profile from the User Data beside the sidebar file', () => {
+  const fs = require('node:fs'), path = require('node:path'), os = require('node:os')
+  const { DatabaseSync } = require('node:sqlite')
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'camber-test-'))
+  // Chromium time: microseconds since 1601-01-01
+  const chrome = (ms) => (BigInt(ms) + 11644473600000n) * 1000n
+  const make = (name, rows) => {
+    fs.mkdirSync(path.join(dir, 'User Data', name), { recursive: true })
+    const db = new DatabaseSync(path.join(dir, 'User Data', name, 'History'))
+    db.exec('CREATE TABLE urls(id INTEGER PRIMARY KEY AUTOINCREMENT,url LONGVARCHAR,title LONGVARCHAR,visit_count INTEGER DEFAULT 0 NOT NULL,typed_count INTEGER DEFAULT 0 NOT NULL,last_visit_time INTEGER NOT NULL,hidden INTEGER DEFAULT 0 NOT NULL)')
+    const add = db.prepare('INSERT INTO urls (url, title, last_visit_time, hidden) VALUES (?, ?, ?, ?)')
+    for (const [url, title, at, hidden = 0] of rows) add.run(url, title, chrome(at), hidden)
+    db.close()
+  }
+  try {
+    make('Default', [
+      ['https://old.example.com/', 'Old', 1700000000000],
+      ['https://new.example.com/', null, 1760000000000],
+      ['chrome://settings/', 'Settings', 1760000000001],
+      ['https://hidden.example.com/', 'Hidden', 1760000000002, 1],
+    ])
+    make('Profile 2', [['https://music.example.com/', 'Music', 1750000000000]])
+    fs.writeFileSync(path.join(dir, 'User Data', 'Profile 2', 'History-journal'), '') // Chromium keeps an empty one around
+    make('System Profile', [['https://system.example.com/', 'System', 1750000000000]])
+
+    const h = history(dir, new Set(['default', 'arc-profile-2']), 5000)
+    assert.deepStrictEqual(Object.keys(h).sort(), ['arc-profile-2', 'default'])
+    // newest first, web pages only, a missing title is empty, times back in Unix ms
+    assert.deepStrictEqual(h.default, [
+      { url: 'https://new.example.com/', title: '', at: 1760000000000 },
+      { url: 'https://old.example.com/', title: 'Old', at: 1700000000000 },
+    ])
+    assert.deepStrictEqual(h['arc-profile-2'].map((e) => e.url), ['https://music.example.com/'])
+    assert.strictEqual(history(dir, new Set(['default']), 1).default.length, 1)
+    // no Arc data beside a sidebar file copied from another machine
+    assert.deepStrictEqual(history(path.join(dir, 'nowhere'), new Set(['default']), 5000), {})
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
 })

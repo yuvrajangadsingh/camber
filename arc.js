@@ -102,4 +102,36 @@ function merge(state, { spaces, favorites }) {
   return gone
 }
 
-module.exports = { convert, merge, arcFile }
+// Arc's history for the given camber profiles, newest first, at most max pages each. Arc (Chromium)
+// keeps it in User Data/<Default | Profile N>/History beside the sidebar file and holds the database
+// locked while it runs, so it is read from a copy, journal included: a write caught mid-copy is then
+// rolled back when the copy opens (which is why it opens writable). Chromium counts microseconds from
+// 1601; the conversion happens in SQL because the raw value is past JavaScript's safe integers.
+// ponytail: runs on the main thread, 0.56 s for a 277 MB history once per import; a worker if that bites
+function history(dir, wanted, max) {
+  const fs = require('node:fs'), path = require('node:path'), os = require('node:os')
+  const out = {}
+  let names
+  try { names = fs.readdirSync(path.join(dir, 'User Data')) } catch { return out }
+  for (const name of names) {
+    const p = name === 'Default' ? 'default' : profile({ custom: { _0: { directoryBasename: name } } })
+    const file = path.join(dir, 'User Data', name, 'History')
+    if (!wanted.has(p) || !fs.existsSync(file)) continue
+    let tmp, db
+    try {
+      tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'camber-arc-'))
+      for (const f of ['History', 'History-journal', 'History-wal'])
+        if (fs.existsSync(file.slice(0, -7) + f)) fs.copyFileSync(file.slice(0, -7) + f, path.join(tmp, f), fs.constants.COPYFILE_FICLONE)
+      db = new (require('node:sqlite').DatabaseSync)(path.join(tmp, 'History'))
+      out[p] = db.prepare(`SELECT url, coalesce(title, '') AS title, last_visit_time / 1000 - 11644473600000 AS at FROM urls
+        WHERE hidden = 0 AND (url LIKE 'http://%' OR url LIKE 'https://%') ORDER BY last_visit_time DESC LIMIT ?`).all(max).map((r) => ({ ...r }))
+    } catch (e) {
+      console.warn('Arc history not read:', e.message)
+    } finally {
+      try { db?.close(); if (tmp) fs.rmSync(tmp, { recursive: true, force: true }) } catch (e) { console.warn('Arc history copy not removed:', e.message) }
+    }
+  }
+  return out
+}
+
+module.exports = { convert, merge, arcFile, history }

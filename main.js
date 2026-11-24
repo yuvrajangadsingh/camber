@@ -158,6 +158,14 @@ function importArc(file = arcPath()) {
   const gone = arc.merge(state, { spaces, favorites })
   gone.forEach(dropView)
   for (const s of state.spaces) tabs.forget(s, gone) // replaced favorites
+  // Arc's history joins camber's, when Arc's data sits beside the sidebar file; the later visit to a page wins
+  const old = arc.history(path.dirname(file), new Set(spaces.map((s) => s.profile)), HISTORY_MAX)
+  for (const [p, list] of Object.entries(old)) {
+    const m = new Map()
+    for (const e of [...list, ...(history[p]?.values() || [])].sort((a, b) => a.at - b.at)) { m.delete(e.url); m.set(e.url, e) }
+    history[p] = new Map([...m].slice(-HISTORY_MAX))
+  }
+  if (Object.keys(old).length) saveHistory()
   showSpace(state.spaces.findIndex((s) => s.arcId === spaces[0]?.arcId))
 }
 

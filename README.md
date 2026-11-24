@@ -148,9 +148,12 @@ What comes over:
 - pinned tabs with the names you gave them in Arc
 - folders, nested as deep as you had them
 - unpinned (today) tabs
+- history, the last 5000 pages per profile, for the command bar. It comes from
+  Arc's data folder, so File > Import from Arc brings it and a sidebar file copied
+  from another machine does not
 
 Importing again replaces the spaces from the earlier import instead of adding
-copies. Not imported: history, passwords, bookmarks, extensions, Boosts and
+copies. Not imported: passwords, bookmarks, extensions, Boosts and
 Easels. Split views and tab groups become plain tabs. You sign in to sites again.
 For passwords, export them from Arc to a CSV file and use File > Passwords >
 Import from CSV… (below).
